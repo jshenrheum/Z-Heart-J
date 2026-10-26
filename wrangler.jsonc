@@ -29,7 +29,7 @@
     {
       "binding": "DB",
       "database_name": "z-heart-j",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "1799d4ec-db4a-4ab8-8ae5-66a8ba80e924",
       "migrations_dir": "migrations"
     }
   ],
