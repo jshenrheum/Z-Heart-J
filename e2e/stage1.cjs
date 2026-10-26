@@ -12,7 +12,8 @@ const eq = (a, b, msg) => { if (a !== b) throw new Error(`${msg || 'expected equ
 const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
 
 (async () => {
-  const browser = await chromium.launch();
+  // CHROMIUM_PATH: optional, for machines whose installed Chromium differs from the playwright package's own.
+  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const newPage = async (opts = {}) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'], ...opts });
     await ctx.clock.setFixedTime(new Date('2026-10-25T15:00:00-04:00')); // dates in assertions assume this day
