@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CSP } from './scripts/csp.mjs';
+import { CSP } from './worker/csp.ts';
 
 // Stage 1 is a static PWA. Stage 2 adds a Cloudflare Worker that serves this
 // build and the same-origin /api. Nothing here reads household data.
