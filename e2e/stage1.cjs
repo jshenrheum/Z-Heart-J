@@ -427,6 +427,24 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const bad = keys.filter((k) => !(k === '/index.html' || k.startsWith('/assets/') || k.startsWith('/icons/') || ['/offline.html', '/offline.css', '/manifest.webmanifest', '/favicon.svg', '/wordmark.svg'].includes(k)));
       ok(bad.length === 0, 'unexpected cached paths: ' + bad.join(', '));
     });
+    await check('pwa: a new deploy shows “A new version is ready”; the refresh switches to it and drops the old cache', async () => {
+      const fs = require('node:fs');
+      const swPath = require('node:path').resolve(__dirname, '..', 'dist-demo', 'sw.js');
+      ok(fs.existsSync(swPath) && /^http:\/\/(127\.0\.0\.1|localhost):/.test(BASE), 'needs the local demo preview of dist-demo/');
+      const original = fs.readFileSync(swPath, 'utf8');
+      try {
+        fs.writeFileSync(swPath, original.replace(/zhj-shell-[a-z0-9]+/, 'zhj-shell-nextdeploy')); // the next build's worker
+        await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
+        await page.locator('.update-banner').waitFor({ timeout: 10000 });
+        await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: /Update available/ }).click()]);
+        await page.waitForTimeout(500);
+        const names = await page.evaluate(() => caches.keys());
+        ok(names.length > 0 && names.every((n) => n === 'zhj-shell-nextdeploy'), JSON.stringify(names));
+        eq(await page.locator('.update-banner').count(), 0, 'banner gone after the refresh');
+      } finally {
+        fs.writeFileSync(swPath, original);
+      }
+    });
     await check('pwa: offline cold start opens the app and says to connect (no household data)', async () => {
       await ctx.setOffline(true);
       await page.reload();

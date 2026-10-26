@@ -158,7 +158,7 @@ function startPreview() {
     await dialog(J.page).getByLabel(/^Credential/).fill('DEA registration');
     await submit(J.page, 'Add credential');
     await J.page.getByRole('button', { name: 'Add number' }).click();
-    await J.page.getByLabel(/^Number/).fill(SECRET);
+    await J.page.getByLabel(/^Enter number/).fill(SECRET);
     await J.page.getByRole('button', { name: 'Save encrypted' }).click();
     await J.page.getByText('Protected — saved').waitFor({ timeout: 5000 });
     ok(!(await J.page.innerText('body')).includes(SECRET), 'not on screen until revealed');

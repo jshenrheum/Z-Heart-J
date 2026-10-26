@@ -133,7 +133,7 @@ export function ProtectedValue({ recordId, slot, label, hasValue, onRemoveField 
 
       {editing ? (
         <form className="protected-form" onSubmit={save} noValidate>
-          <label htmlFor={`${uid}-input`}>{hasValue ? `New ${label.toLowerCase()}` : label}</label>
+          <label htmlFor={`${uid}-input`}>{hasValue ? `New ${label.toLowerCase()}` : `Enter ${label.toLowerCase()}`}</label>
           <input
             ref={input}
             id={`${uid}-input`}

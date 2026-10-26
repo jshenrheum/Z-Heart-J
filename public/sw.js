@@ -7,6 +7,7 @@
  * exports, personalised HTML, or anything from authentication flows. Those requests
  * are not intercepted at all — they go straight to the network.
  */
+// Replaced at build time with a per-build name (vite.config.ts), so every deploy is a new worker.
 const CACHE = 'zhj-shell-v1';
 const PREFIX = 'zhj-';
 
