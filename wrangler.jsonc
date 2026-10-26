@@ -9,11 +9,12 @@
   "compatibility_date": "2026-10-01",
   "send_metrics": false,
 
-  // Reachable only on the custom domain that Cloudflare Access protects. The
-  // workers.dev and preview URLs would sit outside Access, so they stay off.
-  "workers_dev": false,
+  // Served at https://z-heart-j.jshenrheum.workers.dev, behind its own Cloudflare
+  // Access application (README → Deploy). The Worker also checks the Access token
+  // itself, so without that application every request is refused. No per-version
+  // preview addresses: they would sit outside the sign-in.
+  "workers_dev": true,
   "preview_urls": false,
-  "routes": [{ "pattern": "REPLACE_WITH_PRODUCTION_HOSTNAME", "custom_domain": true }],
 
   // The built app. The Worker runs first on every request so it can check the
   // Access token and add the security headers, then hands pages to this binding.
@@ -34,9 +35,9 @@
   ],
 
   "vars": {
-    // e.g. "yourteam.cloudflareaccess.com"
-    "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_ACCESS_TEAM_DOMAIN",
-    // The Access application's Audience (AUD) tag.
+    // Your Zero Trust team (shared with RheumDx; the application below is Z ♥ J’s own).
+    "ACCESS_TEAM_DOMAIN": "the-elite-connection.cloudflareaccess.com",
+    // The Z ♥ J Access application's Audience (AUD) tag — not RheumDx's.
     "ACCESS_AUD": "REPLACE_WITH_ACCESS_AUD",
     "HOUSEHOLD_ID": "zj"
   },

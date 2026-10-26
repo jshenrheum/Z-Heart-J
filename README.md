@@ -2,7 +2,7 @@
 
 A private, quiet place for Jeffrey and Zul to keep the practical details of their life — work numbers, the home address, the vet, the AC filter size — and a few small shared lists and tasks. Installable on both phones as an app.
 
-**Status: Stages 1–3 built and verified locally. Not deployed.** Deploying needs four things only you can provide (see [What I need from you](#what-i-need-from-you)). Results and what is *not* yet verified: [`docs/validation.md`](docs/validation.md).
+**Status: Stages 1–3 built and verified locally. Not deployed.** Deploying needs a few steps in your Cloudflare dashboard (see [Deploy](#deploy)). Results and what is *not* yet verified: [`docs/validation.md`](docs/validation.md).
 
 ---
 
@@ -75,29 +75,30 @@ Phone ──► Cloudflare Access (sign-in, the two emails only)
 |---|---|---|---|
 | `DB` | D1 binding | `wrangler.jsonc` → `d1_databases` | your D1 database's `database_id` |
 | `ASSETS` | static assets binding | `wrangler.jsonc` → `assets` | `./dist` (already set) |
-| `ACCESS_TEAM_DOMAIN` | variable | `wrangler.jsonc` → `vars` | `<your-team>.cloudflareaccess.com` |
-| `ACCESS_AUD` | variable | `wrangler.jsonc` → `vars` | the Access application's Audience (AUD) tag |
+| `ACCESS_TEAM_DOMAIN` | variable | `wrangler.jsonc` → `vars` | `the-elite-connection.cloudflareaccess.com` (set) |
+| `ACCESS_AUD` | variable | `wrangler.jsonc` → `vars` | the Z ♥ J Access application's Audience (AUD) tag |
 | `HOUSEHOLD_ID` | variable | `wrangler.jsonc` → `vars` | `zj` (keep it) |
-| `MEMBER_EMAILS` | **secret** | `npx wrangler secret put MEMBER_EMAILS` | `jeffrey:<Jeffrey's email>,zul:<Zul's email>` |
-| `PROTECTED_DATA_KEY` | **secret** | `npx wrangler secret put PROTECTED_DATA_KEY` | base64 of 32 random bytes — see below |
-| production hostname | route | `wrangler.jsonc` → `routes` | e.g. `zj.example.com`, on a domain in your Cloudflare account |
+| `MEMBER_EMAILS` | **secret** | dashboard → Variables and Secrets, or `npx wrangler secret put` | `jeffrey:<Jeffrey's email>,zul:<Zul's email>` |
+| `PROTECTED_DATA_KEY` | **secret** | dashboard → Variables and Secrets, or `npx wrangler secret put` | base64 of 32 random bytes — see below |
+| address | `workers_dev` | `wrangler.jsonc` | `https://z-heart-j.jshenrheum.workers.dev` |
 
 The emails and the key are secrets on purpose: they never go into this repository.
 
 ## Deploy
 
-Nothing has been deployed. When you're ready (about 20 minutes), on your own computer:
+Nothing has been deployed. It goes into the same Cloudflare account as RheumDx, but with everything of its own — Worker `z-heart-j`, database `z-heart-j`, its own Access application and secrets — so RheumDx is untouched. All of it can be done in the Cloudflare dashboard, from a phone if need be.
 
-1. **Cloudflare.** `npm install`, then `npx wrangler login`.
-2. **Database.** `npx wrangler d1 create z-heart-j`, copy the printed `database_id` into `wrangler.jsonc`, then `npm run db:migrate`.
-3. **Hostname.** Put your production hostname in `wrangler.jsonc` → `routes` (a subdomain of a domain already in your Cloudflare account).
-4. **Access.** In Cloudflare **Zero Trust → Access → Applications → Add an application → Self-hosted**: application domain = your hostname, no path (the whole site). Add one policy: **Allow**, Include → **Emails** → your two addresses. Save, then copy the application's **Audience (AUD) tag** into `ACCESS_AUD`, and your team domain (shown in Zero Trust settings, in the form `<team>.cloudflareaccess.com`) into `ACCESS_TEAM_DOMAIN`. Choose the session length you're comfortable with; when it ends, the app says "Your sign-in has expired" and saves nothing until you sign in again.
-5. **Who's who.** `npx wrangler secret put MEMBER_EMAILS` and enter `jeffrey:<email>,zul:<email>`.
-6. **Encryption key** — next section.
-7. **Ship.** `npm run deploy` (typecheck, production build with its checks, then upload). The Worker is reachable only on your hostname: the `workers.dev` and preview URLs, which would sit outside Access, are off.
-8. **Phones.** Open the hostname, sign in, then install: iPhone Safari → Share → Add to Home Screen; Android Chrome → ⋮ → Install app.
+1. **Database.** Storage & databases → D1 → Create database → name `z-heart-j`. Put its Database ID into `wrangler.jsonc` (`database_id`) and push.
+2. **Connect the repository.** Workers & Pages → Create → Import a repository → GitHub → `Z-Heart-J` (give Cloudflare's GitHub app access to it if asked). Project name `z-heart-j`; build command `npm run build`; deploy command `npm run db:migrate && npx wrangler deploy`. Every push to `main` then deploys, applying new migrations first. Until step 4 is done the site answers "Not set up yet" — it refuses everyone while a setting is missing.
+3. **Access.** Zero Trust → Access → Applications → Add an application → Self-hosted. Domain `z-heart-j.jshenrheum.workers.dev`, no path. One policy: **Allow**, Include → **Emails** → your two addresses, nothing else. Save, copy its **Audience (AUD) tag** into `ACCESS_AUD` in `wrangler.jsonc`, and push. (A new application, not RheumDx's: the Worker only accepts sign-ins made for this one.)
+4. **Secrets.** Workers & Pages → `z-heart-j` → Settings → Variables and Secrets → Add, type **Secret**:
+   - `MEMBER_EMAILS` = `jeffrey:<Jeffrey's email>,zul:<Zul's email>`
+   - `PROTECTED_DATA_KEY` = the key (next section)
 
-Later changes: `npm run deploy` again; new migrations with `npm run db:migrate` first. Open copies of the app offer "A new version is ready".
+   Secrets stay through later deploys.
+5. **Phones.** Open https://z-heart-j.jshenrheum.workers.dev, sign in, then install: iPhone Safari → Share → Add to Home Screen; Android Chrome → ⋮ → Install app.
+
+Open copies of the app offer "A new version is ready" after each deploy. Session length is set on the Access application; when it ends, the app says "Your sign-in has expired" and saves nothing until you sign in again.
 
 ### The encryption key: where it's made and kept
 
@@ -109,18 +110,16 @@ Recommended: make it on your own computer and keep the backup in the password ma
    - macOS / Linux: `openssl rand -base64 32`
    - Windows PowerShell 7: `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`
    - Node: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+   - Phone only: your password manager's generator, **43 characters, letters and numbers only**, then type **`=`** at the end (44 in all).
 2. Save it straight away in your password manager as **“Z ♥ J — PROTECTED_DATA_KEY”** (a shared vault, so either of you can recover it).
-3. `npx wrangler secret put PROTECTED_DATA_KEY` and paste it at the prompt.
+3. Paste it as the `PROTECTED_DATA_KEY` secret (step 4 above, or `npx wrangler secret put PROTECTED_DATA_KEY`).
 4. Clear the terminal. Don't put the key in this repository, a chat, an email, a note or a screenshot.
 
 Changing the key later makes values saved under the old one unreadable: the app says “saved with a different encryption key” instead of showing them. To rotate, put the old key back if needed, or re-enter the values after setting the new one.
 
-## What I need from you
+## Still to do
 
-1. The two email addresses you'll each sign in with (they go into `MEMBER_EMAILS` and the Access policy).
-2. A Cloudflare account, and the Access team domain once the Access application exists.
-3. The production hostname.
-4. Your decision on where the encryption key is generated and backed up (the steps above are my recommendation).
+Decided: your existing Cloudflare account, the address `z-heart-j.jshenrheum.workers.dev`, and the key made and kept by you. Left: the D1 Database ID and the Access AUD tag go into `wrangler.jsonc` (not secrets); the two emails and the key go in as secrets (Deploy, step 4).
 
 ## Layout
 
