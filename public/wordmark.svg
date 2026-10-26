@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 10 270 148" role="img" aria-labelledby="t">
+  <title id="t">Z heart J</title>
+  <path d="M139 104 C152 114 162 125 182 133" fill="none" stroke="#B59A64" stroke-width="2" stroke-linecap="round"/>
+  <g fill="none" stroke="#244C45" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M36 47 C38 34 56 27 75 30 C90 33 101 33 114 27 C103 52 77 80 50 104 C40 113 44 125 59 121 C79 115 99 106 121 110 C127 111 133 109 139 104"/><path d="M200 29 C217 25 238 30 258 26"/><path d="M237 28 C237 62 233 95 225 119 C217 143 193 151 185 135 C180 124 190 115 203 122 C217 129 238 121 256 104"/>
+  </g>
+  <path fill="#8B4755" transform="translate(167 70) rotate(-6) scale(1.2)" d="M0 15 C-27 -1 -24 -22 -9 -22 C-4 -22 0 -19 0 -14 C0 -19 4 -22 9 -22 C24 -22 27 -1 0 15 Z"/>
+</svg>

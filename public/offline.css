@@ -1,0 +1,15 @@
+:root { color-scheme: light; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: grid; place-items: center; padding: 24px; box-sizing: border-box;
+  background: #F7F3EB; color: #23312F;
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 360px; text-align: center; }
+img { width: 180px; height: auto; margin: 0 auto 20px; display: block; }
+h1 { font: 600 1.35rem/1.25 Georgia, "Iowan Old Style", serif; margin: 0 0 8px; }
+p { margin: 0 0 20px; color: #59645F; }
+a.button {
+  display: inline-block; min-height: 44px; line-height: 44px; padding: 0 22px; border-radius: 14px;
+  background: #244C45; color: #FFFDFA; text-decoration: none; font-weight: 600;
+}

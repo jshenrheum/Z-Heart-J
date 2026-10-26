@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"], "typeRoots": ["/opt/npm-tools/node_modules/@types"] },
+  "include": ["src", "tests", "tools"],
+  "exclude": ["src/vite-env.d.ts"]
+}
