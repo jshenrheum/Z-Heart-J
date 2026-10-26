@@ -38,7 +38,7 @@
     // Your Zero Trust team (shared with RheumDx; the application below is Z ♥ J’s own).
     "ACCESS_TEAM_DOMAIN": "the-elite-connection.cloudflareaccess.com",
     // The Z ♥ J Access application's Audience (AUD) tag — not RheumDx's.
-    "ACCESS_AUD": "REPLACE_WITH_ACCESS_AUD",
+    "ACCESS_AUD": "7c471d2cc568d0df3393778c817e1063c1c93adce1620cc90cc51b4cd10b5aa8",
     "HOUSEHOLD_ID": "zj"
   },
 
