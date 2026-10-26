@@ -10,7 +10,7 @@ const { resolve } = require('node:path');
 
 const PORT = Number(process.env.E2E_PORT || 8790);
 const BASE = `http://127.0.0.1:${PORT}`;
-const SECRET = 'AB1234563'; // a made-up test value, never a real number
+const SECRET = 'TEST-VALUE-0001'; // a made-up test value, never a real number
 const results = [];
 const check = async (name, fn) => {
   try { await fn(); results.push([true, name]); } catch (e) { results.push([false, name, String(e.message || e).split('\n').slice(0, 4).join(' ⏎ ')]); }

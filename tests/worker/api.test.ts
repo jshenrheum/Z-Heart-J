@@ -431,7 +431,7 @@ describe('lists and pins', () => {
 describe('protected values: encrypted at rest, revealed only on request', () => {
   let w: LocalWorker;
   let c: ReturnType<typeof client>;
-  const SECRET = 'AB1234563';
+  const SECRET = 'TEST-VALUE-0001';
   before(async () => {
     w = await startLocalWorker();
     c = client(w);

@@ -144,8 +144,3 @@ export async function identify(req: Request, env: Env): Promise<MemberId> {
   if (!member) throw new AuthError(403, 'not_a_member', 'This account isn’t one of the two members of this household.');
   return member;
 }
-
-/** Test hook: forget cached signing keys. */
-export function clearKeyCache() {
-  keyCache.clear();
-}
