@@ -1,6 +1,6 @@
 {
   "viewBox": "14 10 270 148",
-  "colors": { "letters": "#244C45", "heart": "#8B4755", "swash": "#B59A64", "ivory": "#F7F3EB" },
+  "colors": { "letters": "#F7F8F8", "heart": "#F0A3B3", "swash": "#D4BC94", "ground": "#08090A" },
   "letterStrokeWidth": 5.4,
   "swashStrokeWidth": 2,
   "z": "M36 47 C38 34 56 27 75 30 C90 33 101 33 114 27 C103 52 77 80 50 104 C40 113 44 125 59 121 C79 115 99 106 121 110 C127 111 133 109 139 104",

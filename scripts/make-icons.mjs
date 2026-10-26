@@ -24,7 +24,7 @@ const wordmark = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${g.viewBox}"
 </svg>
 `;
 
-// Square monogram: ivory ground, wordmark centred at `scale` of the width.
+// Square monogram: dark ground, wordmark centred at `scale` of the width.
 function square(size, scale, { swash = true, radius = 0, stroke } = {}) {
   const w = size * scale;
   const k = w / vw;
@@ -32,7 +32,7 @@ function square(size, scale, { swash = true, radius = 0, stroke } = {}) {
   const tx = (size - w) / 2 - vx * k;
   const ty = (size - h) / 2 - vy * k + size * 0.012;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-  <rect width="${size}" height="${size}" rx="${radius}" fill="${g.colors.ivory}"/>
+  <rect width="${size}" height="${size}" rx="${radius}" fill="${g.colors.ground}"/>
   <g transform="translate(${tx} ${ty}) scale(${k})">${artwork({ swash, stroke })}</g>
 </svg>
 `;

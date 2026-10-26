@@ -30,7 +30,7 @@ The local preview keeps everything (database and a throwaway encryption key) in 
 | `npm run typecheck` | Strict TypeScript: the app (browser types only), tests and scripts (Node types), the Worker (Workers types) |
 | `npm test` | 41 unit tests: dates and time zone, recurrence, completion and undo, work-summary allowlist, search ranking and protected-value exclusion, record validation |
 | `npm run test:worker` | 42 tests of the real Worker in workerd with a real local D1: sign-in (forged, expired, wrong audience, not a member), setup errors, headers, validation, 409 conflicts, trash and purge, task completion races, encryption, export, household scoping |
-| `npm run contrast` | WCAG contrast for every text and control colour pairing (30) |
+| `npm run contrast` | WCAG contrast for every text and control colour pairing (44) |
 | `npm run e2e` | 65 browser checks on the demo build (serve it with `npm run preview:demo` first) |
 | `npm run e2e:live` | 19 browser checks on the production build behind the local Worker, with two phones (Jeffrey and Zul) |
 | `npm run build` | Also refuses a production build containing any demo content or demo control, inline script or style, or source maps (`scripts/check-dist.mjs`) |
