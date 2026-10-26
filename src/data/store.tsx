@@ -1,20 +1,27 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { makeDemoHousehold } from './demo.ts';
-import type {
-  Assignee, Contact, FieldKind, HomeField, HomeRecord, HomeTemplate, Household, ListItem, MemberId, PinTarget, Plan, SharedList, Task, WorkLocation,
+import {
+  MEMBERS, type Assignee, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type WorkLocation, type Contact, type Credential,
 } from './types.ts';
+import { ConflictError, SaveError, SessionError, type Backend } from './backend.ts';
 import { displayDate, todayIn, type DateStr } from '../lib/dates.ts';
 import { useFeedback } from '../lib/feedback.tsx';
-import { newId } from '../lib/id.ts';
+import { MAX_PINS, newRowId, toHousehold, type Change, type Kind, type Row } from '../lib/records.ts';
 import type { Recurrence } from '../lib/recurrence.ts';
-import { completeTask as completeTaskPure, reopenTask as reopenTaskPure } from '../lib/tasks.ts';
 
 /**
- * Stage 1 data layer: in-memory demo data behind the same shape the real API will
- * have. Every change is applied optimistically, "saved" through a simulated network
- * call, and rolled back to the last confirmed state (with Retry) if that call fails.
- * Nothing is persisted — closing the app resets the demo. Stage 2 replaces
- * `network()` with authenticated, household-scoped requests and version checks.
+ * The app's data layer, the same for the signed-in app and the demo.
+ *
+ * `server` is the last version the server confirmed. Every change is an overlay
+ * (`ops`) applied on top of it right away; when the server answers, its answer is
+ * merged into `server` and the overlay goes. If the save fails, dropping the
+ * overlay is the rollback: the screen shows the last saved version again, and an
+ * alert offers Retry. Nothing is ever shown as saved before the server says so.
+ *
+ * Writes to the same record go out one after another and each names the version
+ * it starts from, read when it's sent. A 409 means the other phone changed it
+ * first: their version is shown and nothing of ours is kept silently.
+ *
+ * Household data lives only in memory here — never in storage on the device.
  */
 
 export interface Banner {
@@ -22,35 +29,28 @@ export interface Banner {
   retry?: () => void;
 }
 
-interface CommitOpts {
-  label: string;
-  apply: () => void;
-  confirm?: () => void;
-  rollback: () => void;
-  retry: () => void;
+export type Outcome<T = void> = { ok: true; value: T } | { ok: false; message: string };
+
+export type Session = { kind: 'ok' } | { kind: 'expired' | 'not_member' | 'not_configured'; message: string };
+
+type Rows = Record<string, Row>;
+interface Op {
+  key: number;
+  ids: string[];
+  apply?: (rows: Rows) => Rows;
 }
 
-export interface Actions {
-  addItem: (listId: string, name: string, qty?: string, note?: string) => Promise<boolean>;
-  toggleItem: (listId: string, itemId: string) => Promise<boolean>;
-  editItem: (listId: string, itemId: string, patch: Pick<ListItem, 'name' | 'qty' | 'note'>) => Promise<boolean>;
-  deleteItem: (listId: string, itemId: string) => Promise<boolean>;
-  moveItem: (listId: string, itemId: string, dir: -1 | 1) => Promise<boolean>;
-  clearChecked: (listId: string) => Promise<boolean>;
-  newList: (title: string, description: string) => Promise<string | null>;
-  addTask: (t: NewTask) => Promise<boolean>;
-  completeTask: (taskId: string) => Promise<boolean>;
-  reopenTask: (taskId: string) => Promise<boolean>;
-  addPlan: (p: { title: string; description: string; target?: DateStr; template: Plan['template'] }) => Promise<string | null>;
-  saveContact: (id: string | null, c: ContactInput) => Promise<string | null>;
-  saveHomeRecord: (id: string, v: { title: string; notes: string; fields: HomeField[] }) => Promise<boolean>;
-  saveLocation: (id: string | null, owner: MemberId, v: Omit<WorkLocation, 'id' | 'owner' | 'updatedBy' | 'updatedAt'>) => Promise<string | null>;
-  addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<string | null>;
-  togglePin: (target: PinTarget) => boolean;
+export type ContactInput = Omit<Contact, 'id' | 'updatedBy' | 'updatedAt' | 'version' | 'aliases'>;
+export type LocationInput = Omit<WorkLocation, 'id' | 'owner' | 'updatedBy' | 'updatedAt' | 'version'>;
+export type ProfileInput = Pick<Profile, 'displayName' | 'specialty' | 'organization' | 'npi'>;
+export type CredentialInput = Pick<Credential, 'type' | 'issuer' | 'expires' | 'renewalUrl'>;
+export interface PlanInput {
+  title: string;
+  description: string;
+  target?: DateStr;
+  template: Plan['template'];
+  status?: Plan['status'];
 }
-
-export type ContactInput = Omit<Contact, 'id' | 'updatedBy' | 'updatedAt' | 'aliases'>;
-
 export interface NewTask {
   title: string;
   assignee: Assignee;
@@ -60,347 +60,527 @@ export interface NewTask {
   notes: string;
 }
 
+export interface Actions {
+  addItem: (listId: string, name: string, qty?: string, note?: string) => Promise<boolean>;
+  toggleItem: (listId: string, itemId: string) => Promise<boolean>;
+  editItem: (listId: string, itemId: string, patch: { name: string; qty: string; note: string }) => Promise<Outcome>;
+  deleteItem: (listId: string, itemId: string) => Promise<boolean>;
+  moveItem: (listId: string, itemId: string, dir: -1 | 1) => Promise<boolean>;
+  clearChecked: (listId: string) => Promise<boolean>;
+  saveList: (id: string | null, title: string, description: string) => Promise<Outcome<string>>;
+  addTask: (t: NewTask) => Promise<Outcome<string>>;
+  saveTask: (id: string, t: NewTask) => Promise<Outcome>;
+  completeTask: (taskId: string) => Promise<boolean>;
+  reopenTask: (taskId: string) => Promise<boolean>;
+  savePlan: (id: string | null, p: PlanInput) => Promise<Outcome<string>>;
+  saveContact: (id: string | null, c: ContactInput) => Promise<Outcome<string>>;
+  saveHomeRecord: (id: string, v: { title: string; notes: string; fields: HomeField[] }) => Promise<Outcome>;
+  saveLocation: (id: string | null, owner: MemberId, v: LocationInput) => Promise<Outcome<string>>;
+  saveProfile: (id: MemberId, v: ProfileInput) => Promise<Outcome>;
+  saveCredential: (id: string | null, owner: MemberId, v: CredentialInput) => Promise<Outcome<string>>;
+  addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<Outcome<string>>;
+  /** Moves a record (and a list's items or a plan's tasks) to the trash, with Undo. */
+  trashRecord: (id: string, what: string) => Promise<Outcome>;
+  restore: (ids: string[]) => Promise<Outcome>;
+  togglePin: (target: PinTarget) => boolean;
+  setProtected: (recordId: string, slot: string, value: string) => Promise<Outcome>;
+  clearProtected: (recordId: string, slot: string) => Promise<Outcome>;
+  reveal: (recordId: string, slot: string) => Promise<Outcome<string>>;
+}
+
 interface Store {
   state: Household;
   me: MemberId;
-  setMe: (m: MemberId) => void;
   today: DateStr;
   saving: boolean;
+  /** 'loading' until the first copy arrives; 'error' if that first load failed. */
+  status: 'loading' | 'ready' | 'error';
+  session: Session;
   banner: Banner | null;
   dismissBanner: () => void;
-  failNext: boolean;
-  setFailNext: (b: boolean) => void;
+  refresh: () => Promise<void>;
+  backend: Backend;
   actions: Actions;
+  /** Demo build only: who you're viewing as, and the simulated failure switch. */
+  demo?: { setMe: (m: MemberId) => void; failNext: boolean; setFailNext: (b: boolean) => void };
 }
 
 const Ctx = createContext<Store | null>(null);
 
+const POLL_MS = 15_000;
 const nowIso = () => new Date().toISOString();
+const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], pins: { jeffrey: [], zul: [] } };
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+function index(rows: Row[]): Rows {
+  const out: Rows = {};
+  for (const r of rows) out[r.id] = r;
+  return out;
+}
+const without = (rows: Rows, ids: string[]) => {
+  const next = { ...rows };
+  for (const id of ids) delete next[id];
+  return next;
+};
+const patchData = (rows: Rows, id: string, data: Record<string, unknown>): Rows => (rows[id] ? { ...rows, [id]: { ...rows[id]!, data } } : rows);
+
+export function StoreProvider({ backend, children }: { backend: Backend; children: ReactNode }) {
   const { toast } = useFeedback();
   const [today, setToday] = useState(() => todayIn());
-  const [state, setState] = useState<Household>(() => makeDemoHousehold(todayIn()));
-  const [me, setMe] = useState<MemberId>('jeffrey');
+  const [server, setServer] = useState<Rows>({});
+  const [ops, setOps] = useState<Op[]>([]);
+  const [me, setMeState] = useState<MemberId>('jeffrey');
+  const [status, setStatus] = useState<Store['status']>('loading');
+  const [session, setSession] = useState<Session>({ kind: 'ok' });
   const [pending, setPending] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [failNext, setFailNextState] = useState(false);
 
-  // Latest state/me for actions that need to read "what's confirmed right now".
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  const serverRef = useRef(server);
+  serverRef.current = server;
   const meRef = useRef(me);
   meRef.current = me;
-  const failRef = useRef(false);
-  const setFailNext = useCallback((b: boolean) => {
-    failRef.current = b;
-    setFailNextState(b);
+  const seq = useRef(0);
+  const chains = useRef(new Map<string, Promise<unknown>>());
+  const inflight = useRef(0);
+  const writesDone = useRef(0);
+  const etag = useRef<string | undefined>(undefined);
+  const loading = useRef(false);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  const rows = useMemo(() => ops.reduce((r, op) => (op.apply ? op.apply(r) : r), server), [server, ops]);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const savingIds = useMemo(() => new Set(ops.flatMap((o) => o.ids)), [ops]);
+  const state = useMemo(() => (status === 'ready' ? toHousehold(Object.values(rows), savingIds) : EMPTY), [rows, savingIds, status]);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const merge = useCallback((c: Change) => {
+    setServer((s) => {
+      const next = without(s, c.removed);
+      for (const r of c.rows) next[r.id] = r;
+      return next;
+    });
   }, []);
 
-  // The household date rolls over while the app is open.
+  // ---------------------------------------------------------------- loading and quiet refresh
+
+  const refresh = useCallback(async () => {
+    if (loading.current) return;
+    loading.current = true;
+    const doneAtStart = writesDone.current;
+    try {
+      const r = await backend.load(etag.current);
+      if (!r) return; // nothing new
+      // A copy fetched while one of our own saves was landing could be older than
+      // what we already have; skip it and look again in a moment.
+      if (inflight.current > 0 || writesDone.current !== doneAtStart) {
+        window.setTimeout(() => void refresh(), 800);
+        return;
+      }
+      etag.current = r.etag;
+      setServer(index(r.snapshot.rows));
+      setMeState(r.snapshot.me);
+      setStatus('ready');
+      setSession({ kind: 'ok' });
+    } catch (e) {
+      if (e instanceof SessionError) setSession({ kind: e.kind, message: e.message });
+      else if (statusRef.current === 'loading') setStatus('error');
+      // Later refresh failures stay quiet: the screen keeps the last saved copy.
+    } finally {
+      loading.current = false;
+    }
+  }, [backend]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // The household date rolls over while the app is open; the shared copy is
+  // refreshed quietly while the app is in view, and as soon as it comes back.
   useEffect(() => {
     const tick = () => setToday(todayIn());
-    document.addEventListener('visibilitychange', tick);
-    const id = window.setInterval(tick, 60_000);
-    return () => {
-      document.removeEventListener('visibilitychange', tick);
-      window.clearInterval(id);
+    const visible = () => {
+      tick();
+      if (document.visibilityState === 'visible' && navigator.onLine) void refresh();
     };
-  }, []);
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('online', visible);
+    const clock = window.setInterval(tick, 60_000);
+    const poll = backend.mode === 'live' ? window.setInterval(() => document.visibilityState === 'visible' && navigator.onLine && void refresh(), POLL_MS) : undefined;
+    return () => {
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('online', visible);
+      window.clearInterval(clock);
+      if (poll) window.clearInterval(poll);
+    };
+  }, [backend, refresh]);
 
-  const network = useCallback(async () => {
-    await new Promise((r) => window.setTimeout(r, 140));
-    if (!navigator.onLine) throw new Error('offline');
-    if (failRef.current) {
-      failRef.current = false;
-      setFailNextState(false);
-      throw new Error('simulated failure');
-    }
-  }, []);
+  // ---------------------------------------------------------------- one change
 
-  const commit = useCallback(
-    async ({ label, apply, confirm, rollback, retry }: CommitOpts): Promise<boolean> => {
-      apply();
+  const run = useCallback(
+    async <T,>(o: {
+      label: string;
+      ids: string[];
+      apply?: (rows: Rows) => Rows;
+      send: () => Promise<Change>;
+      value?: (c: Change) => T;
+      retry?: () => void;
+      /** The form that made this change shows the outcome itself (no alert banner). */
+      quiet?: boolean;
+    }): Promise<Outcome<T>> => {
+      const key = ++seq.current;
+      setOps((x) => [...x, { key, ids: o.ids, apply: o.apply }]);
       setPending((n) => n + 1);
+      inflight.current += 1;
+      const before = o.ids.map((id) => chains.current.get(id) ?? Promise.resolve());
+      const p = Promise.all(before).then(() => o.send());
+      const settled = p.catch(() => undefined);
+      for (const id of o.ids) chains.current.set(id, settled);
       try {
-        await network();
-        confirm?.();
-        setBanner(null);
-        return true;
-      } catch {
-        rollback();
-        setBanner({ message: `Couldn’t save: ${label}. Your last saved version is showing.`, retry });
-        return false;
+        const c = await p;
+        merge(c);
+        if (!o.quiet) setBanner(null);
+        return { ok: true, value: (o.value ? o.value(c) : undefined) as T };
+      } catch (e) {
+        return { ok: false, message: failed(e, o) };
       } finally {
+        setOps((x) => x.filter((op) => op.key !== key));
         setPending((n) => n - 1);
+        inflight.current -= 1;
+        writesDone.current += 1;
+        for (const id of o.ids) if (chains.current.get(id) === settled) chains.current.delete(id);
+        if (backend.mode === 'demo') setFailNextState((backend as unknown as { failNext: boolean }).failNext);
       }
     },
-    [network],
+    // `failed` only uses setters, refs and stable callbacks.
+    [backend, merge],
   );
 
-  const listPatch = useCallback((listId: string, fn: (l: SharedList) => SharedList) => {
-    setState((s) => ({ ...s, lists: s.lists.map((l) => (l.id === listId ? fn(l) : l)) }));
-  }, []);
-  const itemPatch = useCallback(
-    (listId: string, itemId: string, fn: (i: ListItem) => ListItem) => listPatch(listId, (l) => ({ ...l, items: l.items.map((i) => (i.id === itemId ? fn(i) : i)) })),
-    [listPatch],
-  );
-  const findItem = (listId: string, itemId: string) => stateRef.current.lists.find((l) => l.id === listId)?.items.find((i) => i.id === itemId);
+  function failed(e: unknown, o: { label: string; retry?: () => void; quiet?: boolean }): string {
+    if (e instanceof SessionError) {
+      setSession({ kind: e.kind, message: e.message });
+      return e.message;
+    }
+    if (e instanceof ConflictError) {
+      merge({ rows: [e.current], removed: [] });
+      const who = e.current.updatedBy === meRef.current ? 'You' : MEMBERS[e.current.updatedBy].name;
+      const where = e.current.updatedBy === meRef.current ? 'on another device' : 'on the other phone';
+      if (!o.quiet) setBanner({ message: `${who} changed this ${where} just now, so ${o.label}. You’re seeing the latest version.` });
+      return `${who} saved a newer version ${where} a moment ago. Your edits are still here — save again to replace it, or cancel to keep it.`;
+    }
+    const err = e instanceof SaveError ? e : new SaveError('Something went wrong.');
+    const transient = err.status === 0 || err.status >= 500;
+    if (!transient) void refresh(); // the server has a different picture; catch up
+    const msg = transient ? `Couldn’t save: ${o.label}. Your last saved version is showing.` : `Couldn’t save: ${o.label}. ${err.message}`;
+    if (!o.quiet) setBanner({ message: msg, retry: transient ? o.retry : undefined });
+    return transient ? 'Couldn’t save — your changes are still here. Try again.' : err.message;
+  }
+
+  // ---------------------------------------------------------------- actions
 
   const actions = useMemo<Actions>(() => {
+    const ver = (id: string) => {
+      const v = serverRef.current[id]?.version;
+      if (v === undefined) throw new SaveError('It wasn’t saved yet.', 0, 'network');
+      return v;
+    };
+    const row = (id: string) => rowsRef.current[id];
+    const draft = (kind: Kind, id: string, data: Record<string, unknown>, parentId?: string): Row => ({
+      id, kind, ...(parentId ? { parentId } : {}), version: 0, data, createdBy: meRef.current, createdAt: nowIso(), updatedBy: meRef.current, updatedAt: nowIso(),
+    });
+    const create = <T,>(label: string, kind: Kind, id: string, data: Record<string, unknown>, opts: { parentId?: string; quiet?: boolean; value?: (c: Change) => T } = {}) => {
+      const go = (): Promise<Outcome<T>> =>
+        run<T>({
+          label,
+          ids: [id],
+          quiet: opts.quiet,
+          apply: (r) => ({ ...r, [id]: draft(kind, id, data, kind === 'task' ? (data.planId as string | undefined) : opts.parentId) }),
+          send: () => backend.create(kind, id, data, opts.parentId),
+          value: opts.value,
+          retry: () => void go(),
+        });
+      return go();
+    };
+    const update = (label: string, id: string, data: Record<string, unknown>, quiet = false) => {
+      const go = (): Promise<Outcome> =>
+        run({ label, ids: [id], quiet, apply: (r) => patchData(r, id, data), send: () => backend.update(id, ver(id), data), retry: () => void go() });
+      return go();
+    };
+    const restoreIds = (ids: string[], label: string) => run<void>({ label, ids, send: () => backend.restore(ids) });
+
     const a: Actions = {
       async addItem(listId, name, qty = '', note = '') {
-        const item: ListItem = { id: newId('i'), name: name.trim(), qty, note, checked: false, updatedBy: meRef.current, sync: 'saving' };
-        return commit({
-          label: `“${item.name}” wasn’t added`,
-          apply: () => listPatch(listId, (l) => ({ ...l, items: [...l.items, item] })),
-          confirm: () => itemPatch(listId, item.id, (i) => ({ ...i, sync: undefined })),
-          rollback: () => listPatch(listId, (l) => ({ ...l, items: l.items.filter((i) => i.id !== item.id) })),
-          retry: () => void a.addItem(listId, name, qty, note),
-        });
+        const items = Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId);
+        const position = Math.max(0, ...items.map((r) => r.data.position as number)) + 1;
+        const n = name.trim();
+        return (await create(`“${n}” wasn’t added`, 'item', newRowId('i'), { name: n, qty, note, checked: false, position }, { parentId: listId })).ok;
       },
 
       async toggleItem(listId, itemId) {
-        const it = findItem(listId, itemId);
+        const it = row(itemId);
         if (!it) return false;
-        const prev = it.checked;
-        const ok = await commit({
-          label: `“${it.name}” wasn’t ${prev ? 'unchecked' : 'checked'}`,
-          apply: () => itemPatch(listId, itemId, (i) => ({ ...i, checked: !prev, sync: 'saving', updatedBy: meRef.current })),
-          confirm: () => itemPatch(listId, itemId, (i) => ({ ...i, sync: undefined })),
-          rollback: () => itemPatch(listId, itemId, (i) => ({ ...i, checked: prev, sync: undefined })),
-          retry: () => void a.toggleItem(listId, itemId),
-        });
-        if (ok) toast(prev ? `“${it.name}” put back.` : `Checked “${it.name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
-        return ok;
+        const was = it.data.checked === true;
+        const name = it.data.name as string;
+        const r = await update(`“${name}” wasn’t ${was ? 'unchecked' : 'checked'}`, itemId, { ...it.data, checked: !was });
+        if (r.ok) toast(was ? `“${name}” put back.` : `Checked “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
+        return r.ok;
       },
 
-      async editItem(listId, itemId, patch) {
-        const it = findItem(listId, itemId);
-        if (!it) return false;
-        const prev = { name: it.name, qty: it.qty, note: it.note };
-        return commit({
-          label: `changes to “${it.name}”`,
-          apply: () => itemPatch(listId, itemId, (i) => ({ ...i, ...patch, updatedBy: meRef.current, sync: 'saving' })),
-          confirm: () => itemPatch(listId, itemId, (i) => ({ ...i, sync: undefined })),
-          rollback: () => itemPatch(listId, itemId, (i) => ({ ...i, ...prev, sync: undefined })),
-          retry: () => void a.editItem(listId, itemId, patch),
-        });
+      async editItem(_listId, itemId, patch) {
+        const it = row(itemId);
+        if (!it) return { ok: false, message: 'That item isn’t here any more.' };
+        return update(`changes to “${it.data.name as string}”`, itemId, { ...it.data, ...patch }, true);
       },
 
-      async deleteItem(listId, itemId) {
-        const list = stateRef.current.lists.find((l) => l.id === listId);
-        const idx = list?.items.findIndex((i) => i.id === itemId) ?? -1;
-        const it = list?.items[idx];
-        if (!list || !it) return false;
-        const restore = () => listPatch(listId, (l) => (l.items.some((i) => i.id === it.id) ? l : { ...l, items: [...l.items.slice(0, idx), { ...it, sync: undefined }, ...l.items.slice(idx)] }));
-        const ok = await commit({
-          label: `“${it.name}” wasn’t removed`,
-          apply: () => listPatch(listId, (l) => ({ ...l, items: l.items.filter((i) => i.id !== itemId) })),
-          rollback: restore,
-          retry: () => void a.deleteItem(listId, itemId),
-        });
-        if (ok) toast(`Removed “${it.name}”.`, { action: { label: 'Undo', onClick: () => void commit({ label: `“${it.name}” wasn’t restored`, apply: restore, rollback: () => listPatch(listId, (l) => ({ ...l, items: l.items.filter((i) => i.id !== it.id) })), retry: () => undefined }) } });
-        return ok;
+      async deleteItem(_listId, itemId) {
+        const it = row(itemId);
+        if (!it) return false;
+        const name = it.data.name as string;
+        const r = await run({ label: `“${name}” wasn’t removed`, ids: [itemId], apply: (x) => without(x, [itemId]), send: () => backend.remove(itemId, ver(itemId)) });
+        if (r.ok) toast(`Removed “${name}”.`, { action: { label: 'Undo', onClick: () => void restoreIds([itemId], `“${name}” wasn’t restored`) } });
+        return r.ok;
       },
 
       async moveItem(listId, itemId, dir) {
         const list = stateRef.current.lists.find((l) => l.id === listId);
         const i = list?.items.findIndex((x) => x.id === itemId) ?? -1;
         if (!list || i < 0) return false;
-        const checked = list.items[i]!.checked;
+        const items = list.items;
+        const checked = items[i]!.checked;
         let j = i + dir;
-        while (j >= 0 && j < list.items.length && list.items[j]!.checked !== checked) j += dir;
-        if (j < 0 || j >= list.items.length) return false;
-        const swap = (arr: ListItem[]) => {
-          const next = [...arr];
-          const x = next.findIndex((it) => it.id === itemId);
-          const y = next.findIndex((it) => it.id === list.items[j]!.id);
-          if (x < 0 || y < 0) return arr;
-          [next[x], next[y]] = [next[y]!, next[x]!];
-          return next;
-        };
-        return commit({
-          label: 'the new order wasn’t saved',
-          apply: () => listPatch(listId, (l) => ({ ...l, items: swap(l.items) })),
-          rollback: () => listPatch(listId, (l) => ({ ...l, items: swap(l.items) })),
-          retry: () => void a.moveItem(listId, itemId, dir),
-        });
+        while (j >= 0 && j < items.length && items[j]!.checked !== checked) j += dir;
+        if (j < 0 || j >= items.length) return false;
+        // Land just past the neighbour: halfway between it and the item beyond it.
+        const past = items[j]!.position;
+        const beyond = items[j + dir]?.position ?? past + dir;
+        const position = (past + beyond) / 2;
+        const it = row(itemId)!;
+        return (await update('the new order wasn’t saved', itemId, { ...it.data, position })).ok;
       },
 
       async clearChecked(listId) {
-        const list = stateRef.current.lists.find((l) => l.id === listId);
-        const removed = list?.items.filter((i) => i.checked) ?? [];
-        if (!list || removed.length === 0) return false;
-        const original = list.items;
-        const ok = await commit({
+        const ids = Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId && r.data.checked === true).map((r) => r.id);
+        if (ids.length === 0) return false;
+        const r = await run({
           label: 'checked items weren’t cleared',
-          apply: () => listPatch(listId, (l) => ({ ...l, items: l.items.filter((i) => !i.checked) })),
-          rollback: () => listPatch(listId, (l) => ({ ...l, items: original })),
+          ids,
+          apply: (x) => without(x, ids),
+          send: () => backend.clearChecked(listId, ids.map((id) => ({ id, version: ver(id) }))),
+          value: (c) => c.removed,
           retry: () => void a.clearChecked(listId),
         });
-        if (ok) {
-          // Undo: put the cleared items back where they were, keeping anything added since.
-          const undo = () =>
-            listPatch(listId, (l) => {
-              const current = new Map(l.items.map((i) => [i.id, i]));
-              const merged = original.map((o) => current.get(o.id) ?? { ...o, sync: undefined });
-              const extras = l.items.filter((i) => !original.some((o) => o.id === i.id));
-              return { ...l, items: [...merged, ...extras] };
-            });
-          toast(`Cleared ${removed.length} checked item${removed.length === 1 ? '' : 's'}.`, {
-            action: {
-              label: 'Undo',
-              onClick: () =>
-                void commit({
-                  label: 'the cleared items weren’t restored',
-                  apply: undo,
-                  rollback: () => listPatch(listId, (l) => ({ ...l, items: l.items.filter((i) => !removed.some((r) => r.id === i.id)) })),
-                  retry: () => undefined,
-                }),
-            },
-          });
+        if (r.ok && r.value.length > 0) {
+          const n = r.value.length;
+          toast(`Cleared ${n} checked item${n === 1 ? '' : 's'}.`, { action: { label: 'Undo', onClick: () => void restoreIds(r.value, 'the cleared items weren’t restored') } });
         }
-        return ok;
+        return r.ok;
       },
 
-      async newList(title, description) {
-        const list: SharedList = { id: newId('list'), title: title.trim(), description: description.trim(), items: [], updatedBy: meRef.current, updatedAt: nowIso() };
-        const ok = await commit({
-          label: `the list “${list.title}” wasn’t created`,
-          apply: () => setState((s) => ({ ...s, lists: [...s.lists, list] })),
-          rollback: () => setState((s) => ({ ...s, lists: s.lists.filter((l) => l.id !== list.id) })),
-          retry: () => void a.newList(title, description),
-        });
-        return ok ? list.id : null;
+      async saveList(id, title, description) {
+        const data = { title: title.trim(), description: description.trim() };
+        if (id) {
+          const r = await update(`the list “${data.title}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('list');
+        return create(`the list “${data.title}” wasn’t created`, 'list', nid, data, { quiet: true, value: () => nid });
       },
 
       async addTask(t) {
-        const id = newId('t');
-        const task: Task = {
-          id, seriesId: id, planId: t.planId, title: t.title.trim(), assignee: t.assignee, due: t.due, status: 'open', notes: t.notes.trim(),
-          recurrence: t.recurrence, updatedBy: meRef.current,
-        };
-        return commit({
-          label: `the task “${task.title}” wasn’t added`,
-          apply: () => setState((s) => ({ ...s, tasks: [...s.tasks, task] })),
-          rollback: () => setState((s) => ({ ...s, tasks: s.tasks.filter((x) => x.id !== id) })),
-          retry: () => void a.addTask(t),
-        });
+        const id = newRowId('t');
+        const data = taskData(id, t, { status: 'open' });
+        return create(`the task “${t.title.trim()}” wasn’t added`, 'task', id, data, { quiet: true, value: () => id });
+      },
+
+      async saveTask(id, t) {
+        const cur = row(id);
+        if (!cur) return { ok: false, message: 'That task isn’t here any more.' };
+        const keep = cur.data as { seriesId: string; status: 'open' | 'done'; completedOn?: string; createdFrom?: string };
+        return update(`changes to “${t.title.trim()}”`, id, taskData(keep.seriesId, t, keep), true);
       },
 
       async completeTask(taskId) {
-        const before = stateRef.current.tasks;
-        const result = completeTaskPure(before, taskId, todayIn(), meRef.current, () => newId('t'));
-        if (!result.changed) return false;
-        const title = before.find((t) => t.id === taskId)?.title ?? 'Task';
-        const ok = await commit({
+        const t = row(taskId);
+        if (!t || t.data.status === 'done') return false;
+        const title = t.data.title as string;
+        const r = await run({
           label: `“${title}” wasn’t marked done`,
-          apply: () => setState((s) => ({ ...s, tasks: completeTaskPure(s.tasks, taskId, todayIn(), meRef.current, () => result.created?.id ?? newId('t')).tasks })),
-          rollback: () => setState((s) => ({ ...s, tasks: before })),
+          ids: [taskId],
+          apply: (x) => patchData(x, taskId, { ...x[taskId]!.data, status: 'done', completedOn: todayIn() }),
+          send: () => backend.complete(taskId),
+          value: (c) => c.rows.find((x) => x.data.createdFrom === taskId && x.id !== taskId),
           retry: () => void a.completeTask(taskId),
         });
-        if (ok) {
-          const next = result.created?.due ? ` Next one: ${displayDate(result.created.due, todayIn())}.` : '';
-          toast(`Done: “${title}”.${next}`, { action: { label: 'Undo', onClick: () => void a.reopenTask(taskId) } });
+        if (r.ok) {
+          const due = r.value?.data.due as string | undefined;
+          toast(`Done: “${title}”.${due ? ` Next one: ${displayDate(due, todayIn())}.` : ''}`, { action: { label: 'Undo', onClick: () => void a.reopenTask(taskId) } });
         }
-        return ok;
+        return r.ok;
       },
 
       async reopenTask(taskId) {
-        const before = stateRef.current.tasks;
-        const title = before.find((t) => t.id === taskId)?.title ?? 'Task';
-        return commit({
-          label: `“${title}” wasn’t reopened`,
-          apply: () => setState((s) => ({ ...s, tasks: reopenTaskPure(s.tasks, taskId, meRef.current) })),
-          rollback: () => setState((s) => ({ ...s, tasks: before })),
-          retry: () => void a.reopenTask(taskId),
-        });
+        const t = row(taskId);
+        if (!t) return false;
+        const successors = Object.values(rowsRef.current).filter((x) => x.kind === 'task' && x.data.createdFrom === taskId && x.version === 1 && x.data.status === 'open').map((x) => x.id);
+        const data = { ...t.data, status: 'open' };
+        delete (data as { completedOn?: string }).completedOn;
+        return (
+          await run({
+            label: `“${t.data.title as string}” wasn’t reopened`,
+            ids: [taskId, ...successors],
+            apply: (x) => without(patchData(x, taskId, data), successors),
+            send: () => backend.reopen(taskId),
+            retry: () => void a.reopenTask(taskId),
+          })
+        ).ok;
       },
 
-      async addPlan(p) {
-        const plan: Plan = { id: newId('plan'), title: p.title.trim(), description: p.description.trim(), target: p.target, template: p.template, status: 'active', updatedBy: meRef.current, updatedAt: nowIso() };
-        const ok = await commit({
-          label: `the plan “${plan.title}” wasn’t created`,
-          apply: () => setState((s) => ({ ...s, plans: [...s.plans, plan] })),
-          rollback: () => setState((s) => ({ ...s, plans: s.plans.filter((x) => x.id !== plan.id) })),
-          retry: () => void a.addPlan(p),
-        });
-        return ok ? plan.id : null;
+      async savePlan(id, p) {
+        const data = { title: p.title.trim(), description: p.description.trim(), template: p.template, status: p.status ?? 'active', ...(p.target ? { target: p.target } : {}) };
+        if (id) {
+          const r = await update(`the plan “${data.title}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('plan');
+        return create(`the plan “${data.title}” wasn’t created`, 'plan', nid, data, { quiet: true, value: () => nid });
       },
 
       async saveContact(id, c) {
-        const before = stateRef.current.contacts;
-        const existing = id ? before.find((x) => x.id === id) : undefined;
-        const contact: Contact = { ...c, id: existing?.id ?? newId('contact'), aliases: existing?.aliases ?? [], updatedBy: meRef.current, updatedAt: nowIso() };
-        const ok = await commit({
-          label: `the contact “${contact.name}” wasn’t saved`,
-          apply: () => setState((s) => ({ ...s, contacts: existing ? s.contacts.map((x) => (x.id === contact.id ? contact : x)) : [...s.contacts, contact] })),
-          rollback: () => setState((s) => ({ ...s, contacts: before })),
-          retry: () => void a.saveContact(id, c),
-        });
-        return ok ? contact.id : null;
+        const existing = id ? row(id) : undefined;
+        const data = { ...c, aliases: (existing?.data.aliases as string[] | undefined) ?? [] };
+        if (id) {
+          const r = await update(`the contact “${c.name}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('contact');
+        return create(`the contact “${c.name}” wasn’t saved`, 'contact', nid, data, { quiet: true, value: () => nid });
       },
 
       async saveHomeRecord(id, v) {
-        const before = stateRef.current.home;
-        if (!before.some((r) => r.id === id)) return false;
-        return commit({
-          label: `“${v.title}” wasn’t saved`,
-          apply: () => setState((s) => ({ ...s, home: s.home.map((r) => (r.id === id ? { ...r, title: v.title, notes: v.notes, fields: v.fields, updatedBy: meRef.current, updatedAt: nowIso() } : r)) })),
-          rollback: () => setState((s) => ({ ...s, home: before })),
-          retry: () => void a.saveHomeRecord(id, v),
-        });
+        const cur = row(id);
+        if (!cur) return { ok: false, message: 'That card isn’t here any more.' };
+        // Protected fields travel as markers only; their values never leave the server.
+        const fields = v.fields.map((f) => (f.protected ? { id: f.id, label: f.label, kind: f.kind, protected: true } : { id: f.id, label: f.label, kind: f.kind, value: f.value ?? '' }));
+        return update(`“${v.title}” wasn’t saved`, id, { template: cur.data.template, title: v.title, notes: v.notes, fields }, true);
       },
 
       async saveLocation(id, owner, v) {
-        const before = stateRef.current.locations;
-        const existing = id ? before.find((l) => l.id === id) : undefined;
-        const loc: WorkLocation = { ...v, id: existing?.id ?? newId('loc'), owner, updatedBy: meRef.current, updatedAt: nowIso() };
-        const ok = await commit({
-          label: `the work location “${loc.label}” wasn’t saved`,
-          apply: () => setState((s) => ({ ...s, locations: existing ? s.locations.map((l) => (l.id === loc.id ? loc : l)) : [...s.locations, loc] })),
-          rollback: () => setState((s) => ({ ...s, locations: before })),
-          retry: () => void a.saveLocation(id, owner, v),
-        });
-        return ok ? loc.id : null;
+        const data = { owner, ...v };
+        if (id) {
+          const r = await update(`the work location “${v.label}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('loc');
+        return create(`the work location “${v.label}” wasn’t saved`, 'location', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async saveProfile(id, v) {
+        return update('your work details weren’t saved', id, { ...v }, true);
+      },
+
+      async saveCredential(id, owner, v) {
+        const data = { owner, type: v.type, issuer: v.issuer, ...(v.expires ? { expires: v.expires } : {}), ...(v.renewalUrl ? { renewalUrl: v.renewalUrl } : {}) };
+        if (id) {
+          const r = await update(`“${v.type}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('cred');
+        return create(`“${v.type}” wasn’t saved`, 'credential', nid, data, { quiet: true, value: () => nid });
       },
 
       async addInfo(v) {
-        const fields: HomeField[] = v.details.trim() ? [{ label: 'Details', kind: 'text' as FieldKind, value: v.details.trim() }] : [];
-        const rec: HomeRecord = { id: newId('home'), template: v.template, title: v.title.trim(), fields, notes: v.notes.trim(), updatedBy: meRef.current, updatedAt: nowIso() };
-        const ok = await commit({
-          label: `“${rec.title}” wasn’t saved`,
-          apply: () => setState((s) => ({ ...s, home: [...s.home, rec] })),
-          rollback: () => setState((s) => ({ ...s, home: s.home.filter((r) => r.id !== rec.id) })),
-          retry: () => void a.addInfo(v),
-        });
-        return ok ? rec.id : null;
+        const fields = v.details.trim() ? [{ id: newRowId('f'), label: 'Details', kind: 'text', value: v.details.trim() }] : [];
+        const id = newRowId('home');
+        return create(`“${v.title.trim()}” wasn’t saved`, 'home', id, { template: v.template, title: v.title.trim(), fields, notes: v.notes.trim() }, { quiet: true, value: () => id });
       },
+
+      async trashRecord(id, what) {
+        const cur = row(id);
+        if (!cur) return { ok: false, message: 'That isn’t here any more.' };
+        const along = Object.values(rowsRef.current).filter((x) => x.parentId === id).map((x) => x.id);
+        const r = await run<void>({ label: `${what} wasn’t moved to the trash`, ids: [id], apply: (x) => without(x, [id, ...along]), send: () => backend.remove(id, ver(id)), quiet: true });
+        if (r.ok) toast(`Moved ${what} to the trash.`, { action: { label: 'Undo', onClick: () => void restoreIds([id], `${what} wasn’t restored`) } });
+        return r;
+      },
+
+      restore: (ids) => restoreIds(ids, 'that wasn’t restored'),
 
       togglePin(target) {
         const mine = stateRef.current.pins[meRef.current];
         const has = mine.some((p) => p.kind === target.kind && p.id === target.id);
-        if (!has && mine.length >= 6) {
+        if (!has && mine.length >= MAX_PINS) {
           toast('You can pin up to six shortcuts. Unpin one first.', { tone: 'error' });
           return false;
         }
-        setState((s) => ({
-          ...s,
-          pins: { ...s.pins, [meRef.current]: has ? s.pins[meRef.current].filter((p) => !(p.kind === target.kind && p.id === target.id)) : [...s.pins[meRef.current], target] },
-        }));
-        toast(has ? 'Unpinned from Home.' : 'Pinned to Home.');
+        const targets = has ? mine.filter((p) => !(p.kind === target.kind && p.id === target.id)) : [...mine, target];
+        const pinsId = `pins-${meRef.current}`;
+        void run({
+          label: has ? 'the pin wasn’t removed' : 'the pin wasn’t saved',
+          ids: [pinsId],
+          apply: (x) => (x[pinsId] ? patchData(x, pinsId, { targets }) : { ...x, [pinsId]: draft('pins', pinsId, { targets }) }),
+          send: () => backend.setPins(targets),
+        }).then((r) => r.ok && toast(has ? 'Unpinned from Home.' : 'Pinned to Home.'));
         return true;
+      },
+
+      async setProtected(recordId, slot, value) {
+        if (!backend.setProtected) return { ok: false, message: 'Protected values can’t be saved in the demo.' };
+        return run({ label: 'the protected value wasn’t saved', ids: [recordId], send: () => backend.setProtected!(recordId, slot, value), quiet: true });
+      },
+
+      async clearProtected(recordId, slot) {
+        if (!backend.clearProtected) return { ok: false, message: 'Not available in the demo.' };
+        return run({ label: 'the protected value wasn’t removed', ids: [recordId], send: () => backend.clearProtected!(recordId, slot), quiet: true });
+      },
+
+      async reveal(recordId, slot) {
+        if (!backend.reveal) return { ok: false, message: 'Not available in the demo.' };
+        try {
+          return { ok: true, value: await backend.reveal(recordId, slot) };
+        } catch (e) {
+          if (e instanceof SessionError) setSession({ kind: e.kind, message: e.message });
+          return { ok: false, message: e instanceof Error ? e.message : 'Couldn’t show it.' };
+        }
       },
     };
     return a;
-  }, [commit, itemPatch, listPatch, toast]);
+  }, [backend, run, toast]);
+
+  const demo = useMemo<Store['demo']>(() => {
+    if (backend.mode !== 'demo') return undefined;
+    const b = backend as unknown as { me: MemberId; failNext: boolean };
+    return {
+      setMe: (m: MemberId) => {
+        b.me = m;
+        setMeState(m);
+        void refresh();
+      },
+      failNext,
+      setFailNext: (v: boolean) => {
+        b.failNext = v;
+        setFailNextState(v);
+      },
+    };
+  }, [backend, failNext, refresh]);
 
   const value = useMemo<Store>(
-    () => ({ state, me, setMe, today, saving: pending > 0, banner, dismissBanner: () => setBanner(null), failNext, setFailNext, actions }),
-    [state, me, today, pending, banner, failNext, setFailNext, actions],
+    () => ({ state, me, today, saving: pending > 0, status, session, banner, dismissBanner: () => setBanner(null), refresh, backend, actions, demo }),
+    [state, me, today, pending, status, session, banner, refresh, backend, actions, demo],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/** A task's stored fields from a form's input (status and series are the server's to change). */
+function taskData(seriesId: string, t: NewTask, keep: { status: 'open' | 'done'; completedOn?: string; createdFrom?: string }): Record<string, unknown> {
+  const out: Record<string, unknown> = { seriesId, title: t.title.trim(), assignee: t.assignee, status: keep.status, notes: t.notes.trim() };
+  if (t.planId) out.planId = t.planId;
+  if (t.due) out.due = t.due;
+  if (t.recurrence && !t.planId) out.recurrence = t.recurrence;
+  if (keep.completedOn) out.completedOn = keep.completedOn;
+  if (keep.createdFrom) out.createdFrom = keep.createdFrom;
+  return out;
 }
 
 export function useStore(): Store {

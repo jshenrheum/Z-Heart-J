@@ -38,7 +38,7 @@ export function ListsPage() {
         <div className="card">
           <p className="card-title">Start a Groceries list</p>
           <p className="muted">The one most households reach for first.</p>
-          <button type="button" className="btn btn-quiet" onClick={() => void actions.newList('Groceries', '')}>
+          <button type="button" className="btn btn-quiet" onClick={() => void actions.saveList(null, 'Groceries', '')}>
             <Icon name="plus" size={17} /> Create Groceries
           </button>
         </div>
@@ -99,7 +99,14 @@ export function ListPage({ id }: { id: string }) {
         title={list.title}
         sub={list.description || undefined}
         back={{ to: routes.lists, label: 'Lists' }}
-        actions={<PinButton target={{ kind: 'list', id: list.id }} />}
+        actions={
+          <>
+            <PinButton target={{ kind: 'list', id: list.id }} />
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'list', id: list.id })}>
+              <Icon name="edit" size={17} /> Edit
+            </button>
+          </>
+        }
       />
       <QuickAdd listId={list.id} listTitle={list.title} grabFocus />
 

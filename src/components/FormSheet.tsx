@@ -61,7 +61,8 @@ interface Props {
   fields: FieldDef[];
   initial: Values;
   submitLabel?: string;
-  onSubmit: (values: Values) => Promise<boolean>;
+  /** true when saved; otherwise a message saying why not (shown in the form). */
+  onSubmit: (values: Values) => Promise<true | string>;
   onClose: () => void;
   note?: string;
   extraAction?: ReactNode;
@@ -75,7 +76,7 @@ export function FormSheet({ title, fields, initial, submitLabel = 'Save', onSubm
   const [values, setValues] = useState<Values>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(document.activeElement);
@@ -145,16 +146,16 @@ export function FormSheet({ title, fields, initial, submitLabel = 'Save', onSubm
       return;
     }
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     const trimmed: Values = {};
     for (const f of visible) trimmed[f.name] = (values[f.name] ?? '').trim();
-    const ok = await onSubmit(trimmed);
+    const result = await onSubmit(trimmed);
     setBusy(false);
-    if (ok) {
+    if (result === true) {
       setDirty(uid, false);
       onClose();
     } else {
-      setFailed(true);
+      setFailed(result);
     }
   };
 
@@ -178,7 +179,7 @@ export function FormSheet({ title, fields, initial, submitLabel = 'Save', onSubm
           )}
           {failed && (
             <p className="inline-note inline-note-error" role="alert">
-              Couldn’t save. Your changes are still here — try again.
+              {failed}
             </p>
           )}
 

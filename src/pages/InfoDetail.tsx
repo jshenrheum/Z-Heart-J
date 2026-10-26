@@ -6,9 +6,12 @@ import { HOME_ICON } from '../lib/pins.ts';
 import { Link } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
 import { buildWorkSummary, safeUrl, telHref } from '../lib/summary.ts';
+import { useState } from 'react';
+import { CREDENTIAL_SLOT } from '../lib/records.ts';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { CardLink, Chip, PageHeader, PinButton, Section, UpdatedBy, ValueRow } from '../components/ui.tsx';
+import { ProtectedValue } from '../components/ProtectedValue.tsx';
+import { CardLink, Chip, ConfirmDialog, PageHeader, PinButton, Section, UpdatedBy, ValueRow } from '../components/ui.tsx';
 import { expiryChip } from './Info.tsx';
 import { NotFound } from './NotFound.tsx';
 
@@ -40,7 +43,14 @@ function ProfileDetail({ memberId }: { memberId: string }) {
         title={profile.id === me ? 'My work details' : `${name}’s work details`}
         sub={[profile.specialty, profile.organization].filter(Boolean).join(' · ')}
         back={{ to: `${routes.info}?who=${profile.id}`, label: 'Our Info' }}
-        actions={<PinButton target={{ kind: 'profile', id: profile.id }} />}
+        actions={
+          <>
+            <PinButton target={{ kind: 'profile', id: profile.id }} />
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'profile', id: profile.id })}>
+              <Icon name="edit" size={17} /> Edit
+            </button>
+          </>
+        }
       />
 
       <Section title={`Work locations`} count={locs.length} id="locs" action={
@@ -84,22 +94,32 @@ function ProfileDetail({ memberId }: { memberId: string }) {
       </Section>
 
       <Section title="Professional profile" id="prof">
-        <div className="card rows">
-          <ValueRow label="Specialty" value={profile.specialty} kind="text" />
-          <ValueRow label="Organization" value={profile.organization} kind="text" />
-          <ValueRow label="NPI" value={profile.npi} kind="identifier" />
-        </div>
+        {profile.specialty || profile.organization || profile.npi ? (
+          <div className="card rows">
+            {profile.specialty && <ValueRow label="Specialty" value={profile.specialty} kind="text" />}
+            {profile.organization && <ValueRow label="Organization" value={profile.organization} kind="text" />}
+            {profile.npi && <ValueRow label="NPI" value={profile.npi} kind="identifier" />}
+          </div>
+        ) : (
+          <p className="muted">No specialty, organization, or NPI yet — use Edit to add them.</p>
+        )}
       </Section>
 
-      {creds.length > 0 && (
-        <Section title="Credentials" count={creds.length} id="creds">
+      <Section title="Credentials" count={creds.length} id="creds" action={
+        <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'credential', owner: profile.id })}>
+          <Icon name="plus" size={17} /> Add credential
+        </button>
+      }>
+        {creds.length === 0 ? (
+          <p className="muted">No credentials yet. Add a license or registration to keep its expiry date in view; its number is saved encrypted.</p>
+        ) : (
           <div className="stack">
             {creds.map((c) => (
-              <CardLink key={c.id} to={routes.record(c.id)} icon="lock" title={c.type} sub={c.issuer} meta={<span className="chip-row"><Chip tone="lock" icon="lock">Number protected</Chip>{expiryChip(c.expires, today)}</span>} />
+              <CardLink key={c.id} to={routes.record(c.id)} icon="lock" title={c.type} sub={c.issuer} meta={<span className="chip-row"><Chip tone="lock" icon="lock">{c.hasValue ? 'Number protected' : 'No number saved'}</Chip>{expiryChip(c.expires, today)}</span>} />
             ))}
           </div>
-        </Section>
-      )}
+        )}
+      </Section>
       <UpdatedBy by={profile.updatedBy} at={profile.updatedAt} />
     </div>
   );
@@ -162,23 +182,31 @@ function CredentialDetail({ id }: { id: string }) {
 
   return (
     <div className="page">
-      <PageHeader title={cred.type} sub={`${MEMBERS[cred.owner].name} · ${cred.issuer}`} back={{ to: routes.profile(cred.owner), label: `${MEMBERS[cred.owner].name}’s work details` }} />
+      <PageHeader
+        title={cred.type}
+        sub={[MEMBERS[cred.owner].name, cred.issuer].filter(Boolean).join(' · ')}
+        back={{ to: routes.profile(cred.owner), label: `${MEMBERS[cred.owner].name}’s work details` }}
+        actions={
+          <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'credential', owner: cred.owner, id: cred.id })}>
+            <Icon name="edit" size={17} /> Edit
+          </button>
+        }
+      />
       <div className="card rows">
-        <ValueRow label="Issuing body" value={cred.issuer} kind="text" />
+        {cred.issuer && <ValueRow label="Issuing body" value={cred.issuer} kind="text" />}
         {cred.expires && <ValueRow label="Expires" value={displayDate(cred.expires, today)} kind="date" />}
         {renewal && <ValueRow label="Renewal link" value={renewal} kind="url" />}
       </div>
       {cred.expires && diffDays(cred.expires, today) <= 60 && <p className="chip-row">{expiryChip(cred.expires, today)}</p>}
 
-      <div className="protected-card" role="note">
+      <section className="protected-card" aria-labelledby="cred-number-h">
         <div className="protected-head">
           <Icon name="lock" size={20} />
-          <strong>Credential number — protected</strong>
+          <h2 className="protected-title" id="cred-number-h">Credential number — protected</h2>
         </div>
-        <p>
-          This number is stored encrypted on the server. It never appears in search, summaries, previews, or exports. Entering and revealing it turns on once secure sign-in is connected (Stage 2) — nothing is saved from this preview.
-        </p>
-      </div>
+        <p>Stored encrypted on the server and shown only when someone taps Reveal. It never appears in search, summaries, previews, or exports.</p>
+        <ProtectedValue recordId={cred.id} slot={CREDENTIAL_SLOT} label="Number" hasValue={cred.hasValue} />
+      </section>
 
       {cred.expires && due && (
         <Section title="Renewal" id="renewal">
@@ -203,10 +231,12 @@ function CredentialDetail({ id }: { id: string }) {
 // ------------------------------------------------------------------ home record
 
 function HomeDetail({ id }: { id: string }) {
-  const { state } = useStore();
+  const { state, actions } = useStore();
   const forms = useForms();
+  const [removing, setRemoving] = useState<string | null>(null);
   const rec = state.home.find((r) => r.id === id);
   if (!rec) return <NotFound what="card" />;
+  const removingField = rec.fields.find((f) => f.id === removing);
   return (
     <div className="page">
       <PageHeader
@@ -224,15 +254,35 @@ function HomeDetail({ id }: { id: string }) {
       />
       {rec.fields.length > 0 ? (
         <div className="card rows">
-          {rec.fields.map((f) => (
-            <ValueRow key={f.label} label={f.label} kind={f.kind} value={f.protected ? undefined : f.value} protectedNote={f.protected ? 'Revealed only with secure sign-in (Stage 2).' : undefined} />
-          ))}
+          {rec.fields.map((f) =>
+            f.protected ? (
+              <ProtectedValue key={f.id} recordId={rec.id} slot={f.id} label={f.label} hasValue={!!f.hasValue} onRemoveField={() => setRemoving(f.id)} />
+            ) : (
+              <ValueRow key={f.id} label={f.label} kind={f.kind} value={f.value} />
+            ),
+          )}
         </div>
       ) : (
-        <p className="muted">No details yet — use Edit to add some.</p>
+        <p className="muted">No details yet.</p>
       )}
+      <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'field', recordId: rec.id })}>
+        <Icon name="plus" size={17} /> Add a field
+      </button>
       {rec.notes && <p className="notes">{rec.notes}</p>}
       <UpdatedBy by={rec.updatedBy} at={rec.updatedAt} />
+      {removingField && (
+        <ConfirmDialog
+          title={`Remove the field “${removingField.label}”?`}
+          body="The field is removed from this card for both of you."
+          confirmLabel="Remove field"
+          danger
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            setRemoving(null);
+            void actions.saveHomeRecord(rec.id, { title: rec.title, notes: rec.notes, fields: rec.fields.filter((f) => f.id !== removingField.id) });
+          }}
+        />
+      )}
     </div>
   );
 }

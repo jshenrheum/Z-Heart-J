@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+type D1Database = Awaited<ReturnType<Miniflare['getD1Database']>>;
 export const LOCAL_TEAM = 'local-preview.cloudflareaccess.com';
 export const LOCAL_AUD = 'local-preview-aud';
 
@@ -155,7 +156,7 @@ export async function startLocalWorker(opts: LocalOptions = {}): Promise<LocalWo
       return new Response('Blocked by the local harness', { status: 502 });
     },
   } as Parameters<typeof convertV4MiniflareOptions>[0]));
-  const db = (await mf.getD1Database('DB')) as unknown as D1Database;
+  const db = await mf.getD1Database('DB');
   await applyMigrations(db);
   const origin = opts.origin ?? 'http://127.0.0.1:8788';
 

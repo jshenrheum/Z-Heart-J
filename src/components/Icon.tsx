@@ -1,9 +1,11 @@
 export type IconName =
   | 'home' | 'info' | 'list' | 'plan' | 'search' | 'plus' | 'copy' | 'phone' | 'pin' | 'map' | 'mail' | 'globe' | 'lock'
   | 'chevron' | 'check' | 'undo' | 'user' | 'x' | 'arrowUp' | 'arrowDown' | 'trash' | 'calendar' | 'refresh' | 'edit'
-  | 'fax' | 'building' | 'wifi' | 'paw' | 'car' | 'bolt' | 'wrench' | 'heart' | 'repeat' | 'download';
+  | 'fax' | 'building' | 'wifi' | 'paw' | 'car' | 'bolt' | 'wrench' | 'heart' | 'repeat' | 'download' | 'eye' | 'logout';
 
 const PATHS: Record<IconName, string> = {
+  eye: 'M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  logout: 'M13.5 4.5h-8v15h8 M10 12h10.5 M17 8.5l3.5 3.5-3.5 3.5',
   home: 'M3 11.5 12 4l9 7.5 M5.5 10v9.5h13V10 M10 19.5v-5h4v5',
   info: 'M5 4.5h10.5A2.5 2.5 0 0 1 18 7v13H7.5A2.5 2.5 0 0 1 5 17.5Z M5 17.5A2.5 2.5 0 0 1 7.5 15H18',
   list: 'M9 6.5h11 M9 12h11 M9 17.5h11 M4.5 6.5h.01 M4.5 12h.01 M4.5 17.5h.01',

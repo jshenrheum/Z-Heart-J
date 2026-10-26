@@ -95,9 +95,16 @@ export function PlanPage({ id }: { id: string }) {
     <div className="page">
       <PageHeader
         title={plan.title}
-        sub={plan.target ? `Target ${displayDate(plan.target, today)}` : undefined}
+        sub={[plan.status === 'done' ? 'Finished' : '', plan.target ? `Target ${displayDate(plan.target, today)}` : ''].filter(Boolean).join(' · ') || undefined}
         back={{ to: routes.plans, label: 'Plans' }}
-        actions={<PinButton target={{ kind: 'plan', id: plan.id }} />}
+        actions={
+          <>
+            <PinButton target={{ kind: 'plan', id: plan.id }} />
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'plan', id: plan.id })}>
+              <Icon name="edit" size={17} /> Edit
+            </button>
+          </>
+        }
       />
       {plan.description && <p className="notes">{plan.description}</p>}
       <Section

@@ -272,6 +272,13 @@ main { min-width: 0; padding: 16px 16px calc(var(--nav-h) + var(--safe-bottom) +
 .summary-preview { margin-bottom: 12px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); font: 0.9375rem/1.55 var(--font-sans); white-space: pre-wrap; font-variant-numeric: tabular-nums; }
 .protected-card { display: grid; gap: 6px; padding: 14px 16px; background: #F4F1E8; border: 1px solid #E2DBC4; border-radius: var(--radius); }
 .protected-head { display: flex; align-items: center; gap: 8px; color: #4D4222; }
+.protected-title { margin: 0; font-size: 1rem; font-weight: 700; }
+.protected-card .protected-row { margin: 4px -16px -14px; padding: 12px 16px 14px; border-top: 1px solid #E2DBC4; }
+.protected-row { align-items: flex-start; }
+.protected-row .inline-note { flex-basis: 100%; }
+.value.revealed { font-weight: 700; letter-spacing: 0.04em; }
+.protected-form { flex: 1 1 260px; display: grid; gap: 6px; }
+.protected-form label { font-weight: 600; }
 .contact-card { display: grid; gap: 8px; padding: 8px 10px 12px; }
 .contact-card .card-link { border: 0; box-shadow: none; padding: 4px; }
 .contact-actions { padding: 0 4px; }
@@ -354,6 +361,8 @@ textarea.input { min-height: 96px; resize: vertical; }
 .check svg { position: absolute; color: var(--on-primary); }
 .task-body { flex: 1; min-width: 0; display: grid; gap: 4px; padding: 8px 6px 8px 0; }
 .task-title { font-weight: 600; }
+.task-edit { justify-self: start; min-height: 44px; margin: -10px 0 -8px -6px; padding: 0 6px; text-align: left; font: inherit; font-weight: 600; color: inherit; background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+.task-edit:hover { background: var(--sage); }
 .task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .task-notes { font-size: 0.875rem; color: var(--muted); }
 .checked { display: grid; gap: 10px; }
@@ -370,6 +379,10 @@ textarea.input { min-height: 96px; resize: vertical; }
 .card > .card-title + .bullets { margin-top: 8px; }
 .card > p + p { margin-top: 8px; }
 .card > .btn { margin-top: 12px; }
+.trash-list { list-style: none; display: grid; gap: 10px; }
+.trash-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.trash-entry .card-main { flex: 1 1 220px; }
+.state-panel { display: grid; justify-items: start; gap: 12px; max-width: 34rem; padding: 28px 0; }
 
 /* ------------------------------------------------------------------ toast */
 .toast-region { position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + var(--safe-bottom) + 14px); z-index: 80; display: grid; justify-items: center; padding: 0 16px; pointer-events: none; }

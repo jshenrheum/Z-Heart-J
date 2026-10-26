@@ -1,7 +1,9 @@
-/* Stage 1 browser checks. Run against a built preview:
- *   node scripts/build-local.mjs && node scripts/preview-local.mjs 4173 &
- *   NODE_PATH=/opt/npm-tools/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node e2e/stage1.cjs [baseUrl]
- * Exits non-zero if any check fails. Needs the `playwright` package and a Chromium build. */
+/* Browser checks for the demo build (the Stage 1 journeys, on placeholder data):
+ *   npm run build:demo && npm run preview:demo &      (serves dist-demo/ on :4173)
+ *   npm run e2e [-- baseUrl]
+ * Exits non-zero if any check fails. Needs `npx playwright install chromium` once, or
+ * CHROMIUM_PATH pointing at an installed Chromium. The signed-in app has its own
+ * checks against the local Worker: e2e/stage2.cjs. */
 const { chromium } = require('playwright');
 const BASE = process.argv[2] || 'http://127.0.0.1:4173';
 const results = [];
@@ -24,7 +26,10 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     return { ctx, page };
   };
   const nav = (page, name) => page.locator('nav.nav a', { hasText: name }).first(); // the app's own nav, never a breadcrumb
-  const open = (page, path) => page.goto(BASE + path, { waitUntil: 'networkidle' });
+  const open = async (page, path) => {
+    await page.goto(BASE + path, { waitUntil: 'networkidle' });
+    await page.locator('p.state-panel[role=status]').waitFor({ state: 'detached', timeout: 5000 }); // first load done
+  };
   const searchFor = async (page, q) => { const box = page.locator('input[type=search]').first(); await box.fill(q); await page.waitForTimeout(200); };
   const rows = (page) => page.$$eval('.result', (els) => els.map((e) => e.innerText.replace(/\s*\n\s*/g, ' | ')));
 
@@ -85,11 +90,12 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       eq(await page.locator('a[href="tel:5550100102"]').count(), 0, 'fax tel link');
       eq(await page.locator('a[href="tel:5550100100"]').count(), 1, 'main phone tel link');
     });
-    await check('credential page: states secure reveal is Stage 2 and offers no fake number field', async () => {
+    await check('credential page: the demo says plainly it stores no protected values, and offers no number field', async () => {
       await open(page, '/info/r/cred-j1');
       const t = await page.innerText('main');
-      ok(/Stage 2/.test(t) && /protected/i.test(t), 'honest note');
-      eq(await page.locator('main input').count(), 0, 'no inputs for credential numbers in Stage 1');
+      ok(/demo preview doesn’t store protected values/.test(t) && /encrypted/i.test(t), 'honest note');
+      eq(await page.locator('main input').count(), 0, 'no inputs for credential numbers in the demo');
+      eq(await page.getByRole('button', { name: /Reveal|Add number/ }).count(), 0, 'no reveal or entry controls in the demo');
     });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();
@@ -372,7 +378,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const imgNoAlt = [...document.querySelectorAll('img:not([alt])')].length;
       return { dupes, unnamed, h1, imgNoAlt };
     });
-    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/search', '/no-such-page']) {
+    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/search', '/no-such-page']) {
       await check(`a11y structure ${route}: one h1, unique ids, every control named`, async () => {
         await open(page, route);
         const r = await audit();

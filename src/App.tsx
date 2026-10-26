@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { FeedbackProvider } from './lib/feedback.tsx';
 import { navigate, useRoute } from './lib/router.tsx';
 import { routes } from './lib/routes.ts';
+import type { Backend } from './data/backend.ts';
 import { StoreProvider } from './data/store.tsx';
 import { FormsProvider } from './components/Forms.tsx';
 import { AppShell } from './components/Layout.tsx';
@@ -13,6 +14,7 @@ import { NotFound } from './pages/NotFound.tsx';
 import { PlanPage, PlansPage } from './pages/Plans.tsx';
 import { SearchPage } from './pages/Search.tsx';
 import { SettingsPage } from './pages/Settings.tsx';
+import { TrashPage } from './pages/Trash.tsx';
 
 function Routes() {
   const { path } = useRoute();
@@ -22,6 +24,7 @@ function Routes() {
   if (path === '/') return <HomePage />;
   if (path === routes.search) return <SearchPage />;
   if (path === routes.settings) return <SettingsPage />;
+  if (path === routes.trash) return <TrashPage />;
   if (a === 'info') {
     if (seg.length === 1) return <InfoPage />;
     if (b === 'contacts' && seg.length === 2) return <ContactsPage />;
@@ -54,11 +57,11 @@ function useSearchShortcut() {
   }, []);
 }
 
-export function App() {
+export function App({ backend }: { backend: Backend }) {
   useSearchShortcut();
   return (
     <FeedbackProvider>
-      <StoreProvider>
+      <StoreProvider backend={backend}>
         <FormsProvider>
           <AppShell>
             <Routes />

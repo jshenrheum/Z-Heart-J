@@ -1,8 +1,11 @@
-import { MEMBER_IDS, MEMBERS } from '../data/types.ts';
+import { MEMBERS } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { detectPlatform, isStandalone, promptInstall, usePwa } from '../lib/pwa.ts';
+import { routes } from '../lib/routes.ts';
 import { Icon } from '../components/Icon.tsx';
-import { PageHeader, Section } from '../components/ui.tsx';
+import { signOut } from '../components/Layout.tsx';
+import { CardLink, PageHeader, Section } from '../components/ui.tsx';
+import { DemoSettings } from '../demo/ui.tsx';
 
 const INSTALL_STEPS = {
   ios: 'In Safari, tap the Share button, then “Add to Home Screen”. (Other iPhone browsers can’t install web apps.)',
@@ -11,32 +14,55 @@ const INSTALL_STEPS = {
 } as const;
 
 export function SettingsPage() {
-  const { me, setMe, failNext, setFailNext } = useStore();
+  const { me, backend } = useStore();
   const { canInstall } = usePwa();
   const platform = detectPlatform();
   const installed = isStandalone();
+  const live = backend.mode === 'live';
 
   return (
     <div className="page">
-      <PageHeader title="Settings" sub="Z Heart J · Stage 1 preview" />
+      <PageHeader title="Settings" sub={live ? undefined : 'Z Heart J · demo preview'} />
 
-      <Section title="Viewing as" id="viewing">
-        <div className="card">
-          <p className="muted">In this preview you can switch between the two members to try “my fax” and personal pins. In the real app, who you are comes from signing in — there is no switch.</p>
-          <div className="segmented" role="group" aria-label="Viewing as">
-            {MEMBER_IDS.map((m) => (
-              <button key={m} type="button" className={`seg ${me === m ? 'is-on' : ''}`} aria-pressed={me === m} onClick={() => setMe(m)}>
-                {MEMBERS[m].name}
-              </button>
-            ))}
+      {live && (
+        <Section title="Signed in" id="account">
+          <div className="card">
+            <p>
+              You’re signed in as <strong>{MEMBERS[me].name}</strong>.
+            </p>
+            <p className="muted">Sign-in is handled by Cloudflare Access, and the server checks it on every request. Only the two of you can open this app.</p>
+            <button type="button" className="btn btn-quiet" onClick={() => void signOut()}>
+              <Icon name="logout" size={18} /> Sign out
+            </button>
           </div>
-        </div>
-      </Section>
+        </Section>
+      )}
+
+      {__DEMO__ && <DemoSettings />}
 
       <Section title="Sharing" id="sharing">
         <div className="card">
           <p>Information you save here is shared with both of you.</p>
           <p className="muted">A person’s name on a card says whose it is. It is attribution, not a privacy setting — separate private spaces would need real server-side permissions and are a later feature.</p>
+        </div>
+      </Section>
+
+      <Section title="Your data" id="data">
+        <div className="stack">
+          <CardLink to={routes.trash} icon="trash" title="Trash" sub="Deleted things are kept for 30 days, then removed for good." />
+          <div className="card">
+            <p className="card-title">Export</p>
+            {live && backend.exportHref ? (
+              <>
+                <p className="muted">Downloads everything ordinary as one JSON file: work details, locations, home cards, contacts, lists, plans and tasks. Protected values (like DEA numbers) are never included.</p>
+                <a className="btn btn-quiet" href={backend.exportHref} download>
+                  <Icon name="download" size={18} /> Download export
+                </a>
+              </>
+            ) : (
+              <p className="muted">Export is available in the signed-in app. The demo preview has nothing real to export.</p>
+            )}
+          </div>
         </div>
       </Section>
 
@@ -60,25 +86,8 @@ export function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Preview tools" id="tools">
-        <div className="card">
-          <label className="toggle">
-            <input type="checkbox" checked={failNext} onChange={(e) => setFailNext(e.target.checked)} />
-            <span>Make the next save fail</span>
-          </label>
-          <p className="muted">Try it, then add or check a list item: the change rolls back to the last saved version and offers Retry. Nothing is ever shown as saved when it wasn’t.</p>
-        </div>
-      </Section>
-
       <Section title="What’s coming" id="roadmap">
         <div className="card">
-          <p className="card-title">Next (Stage 2)</p>
-          <ul className="bullets">
-            <li>Sign-in for just the two of you, checked on the server</li>
-            <li>Real shared saving, so both phones see the same lists and cards</li>
-            <li>Encrypted credential entry and reveal (DEA and similar)</li>
-            <li>Ordinary-data export, and 30-day recovery for deleted records</li>
-          </ul>
           <p className="card-title">Later</p>
           <ul className="bullets">
             <li>Document attachments with expiry dates, opt-in reminders, calendar sync</li>

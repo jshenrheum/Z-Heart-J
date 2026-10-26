@@ -19,7 +19,7 @@ export function HomePage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const pins = state.pins[me].map((p) => resolvePin(state, p, me)).filter((p): p is NonNullable<typeof p> => p !== null).slice(0, 6);
-  const lists = [...state.lists].sort((a, b) => (a.id === 'groceries' ? -1 : b.id === 'groceries' ? 1 : 0)).slice(0, 3);
+  const lists = [...state.lists].sort((a, b) => (/grocer/i.test(a.title) ? -1 : /grocer/i.test(b.title) ? 1 : 0)).slice(0, 3);
   const coming = viewTasks(state.tasks, 'upcoming');
 
   return (

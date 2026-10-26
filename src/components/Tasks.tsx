@@ -4,6 +4,7 @@ import { displayDate, dueState, relativeLabel } from '../lib/dates.ts';
 import { describeRecurrence } from '../lib/recurrence.ts';
 import { Link } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
+import { useForms } from './Forms.tsx';
 import { Icon } from './Icon.tsx';
 import { Chip } from './ui.tsx';
 
@@ -19,6 +20,7 @@ function dueText(due: string, today: string) {
 
 export function TaskRow({ task, showPlan = true }: { task: Task; showPlan?: boolean }) {
   const { state, today, actions } = useStore();
+  const forms = useForms();
   const done = task.status === 'done';
   const plan = showPlan && task.planId ? state.plans.find((p) => p.id === task.planId) : undefined;
   const st = dueState(task.due, today);
@@ -36,7 +38,9 @@ export function TaskRow({ task, showPlan = true }: { task: Task; showPlan?: bool
         {done && <Icon name="check" size={18} />}
       </button>
       <div className="task-body">
-        <span className="task-title">{task.title}</span>
+        <button type="button" className="task-title task-edit" onClick={() => forms.open({ kind: 'task', id: task.id })} aria-label={`Edit “${task.title}”`}>
+          {task.title}
+        </button>
         <span className="task-meta">
           <Chip>{assigneeLabel(task.assignee)}</Chip>
           {done && task.completedOn ? (

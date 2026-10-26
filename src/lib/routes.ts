@@ -6,6 +6,7 @@ export const routes = {
   lists: '/lists',
   plans: '/plans',
   settings: '/settings',
+  trash: '/settings/trash',
   // The query text is passed through history.state and never written to the URL,
   // so it cannot reach server or access logs.
   search: '/search',

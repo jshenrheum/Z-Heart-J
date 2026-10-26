@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { Task } from '../src/data/types.ts';
 import { completeTask, reopenTask, viewTasks } from '../src/lib/tasks.ts';
 
-const base = (over: Partial<Task>): Task => ({ id: 'a', seriesId: 'a', title: 'x', assignee: 'both', status: 'open', notes: '', updatedBy: 'jeffrey', ...over });
+const base = (over: Partial<Task>): Task => ({ id: 'a', seriesId: 'a', title: 'x', assignee: 'both', status: 'open', notes: '', updatedBy: 'jeffrey', updatedAt: '2026-10-25T12:00:00.000Z', version: 1, ...over });
 let n = 0;
 const newId = () => `new-${++n}`;
 

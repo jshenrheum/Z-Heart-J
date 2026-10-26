@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeDemoHousehold } from '../src/data/demo.ts';
+import { makeDemoRows } from '../src/demo/data.ts';
+import { toHousehold } from '../src/lib/records.ts';
+
+const makeDemoHousehold = (today: string) => toHousehold(makeDemoRows(today));
 import { buildIndex, search } from '../src/lib/search.ts';
 
 const TODAY = '2026-10-25';

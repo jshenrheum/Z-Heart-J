@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { HOME_TEMPLATE_LABEL, MEMBER_IDS, MEMBERS, type Assignee, type HomeTemplate, type MemberId, type Plan } from '../data/types.ts';
-import { useStore } from '../data/store.tsx';
+import { HOME_TEMPLATE_LABEL, MEMBER_IDS, MEMBERS, type Assignee, type FieldKind, type HomeTemplate, type MemberId, type Plan } from '../data/types.ts';
+import { useStore, type Outcome } from '../data/store.tsx';
 import { useFeedback } from '../lib/feedback.tsx';
+import { newRowId } from '../lib/records.ts';
 import { navigate } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
 import type { RecurrenceMode, RecurrenceUnit } from '../lib/recurrence.ts';
@@ -11,13 +12,16 @@ import { FormSheet, type FieldDef, type Values } from './FormSheet.tsx';
 /** All "add / edit" forms, opened from anywhere via useForms(). */
 
 export type FormRequest =
-  | { kind: 'task'; prefill?: Partial<Values> }
+  | { kind: 'task'; id?: string; prefill?: Partial<Values> }
   | { kind: 'contact'; id?: string }
   | { kind: 'home'; id: string }
+  | { kind: 'field'; recordId: string }
   | { kind: 'info'; title?: string }
   | { kind: 'location'; owner: MemberId; id?: string }
-  | { kind: 'list' }
-  | { kind: 'plan' }
+  | { kind: 'profile'; id: MemberId }
+  | { kind: 'credential'; owner: MemberId; id?: string }
+  | { kind: 'list'; id?: string }
+  | { kind: 'plan'; id?: string }
   | { kind: 'item'; listId: string; itemId: string };
 
 const FormsCtx = createContext<{ open: (r: FormRequest) => void } | null>(null);
@@ -28,6 +32,7 @@ export const useForms = () => {
 };
 
 const SHARED = 'Information you save here is shared with both of you.';
+const done = (r: Outcome<unknown>): true | string => (r.ok ? true : r.message);
 
 export function FormsProvider({ children }: { children: ReactNode }) {
   const [req, setReq] = useState<FormRequest | null>(null);
@@ -37,23 +42,51 @@ export function FormsProvider({ children }: { children: ReactNode }) {
   return (
     <FormsCtx.Provider value={api}>
       {children}
-      {req?.kind === 'task' && <TaskForm prefill={req.prefill} onClose={close} />}
+      {req?.kind === 'task' && <TaskForm id={req.id} prefill={req.prefill} onClose={close} />}
       {req?.kind === 'contact' && <ContactForm id={req.id} onClose={close} />}
       {req?.kind === 'home' && <HomeRecordForm id={req.id} onClose={close} />}
+      {req?.kind === 'field' && <FieldForm recordId={req.recordId} onClose={close} />}
       {req?.kind === 'info' && <InfoForm title={req.title} onClose={close} />}
       {req?.kind === 'location' && <LocationForm owner={req.owner} id={req.id} onClose={close} />}
-      {req?.kind === 'list' && <ListForm onClose={close} />}
-      {req?.kind === 'plan' && <PlanForm onClose={close} />}
+      {req?.kind === 'profile' && <ProfileForm id={req.id} onClose={close} />}
+      {req?.kind === 'credential' && <CredentialForm owner={req.owner} id={req.id} onClose={close} />}
+      {req?.kind === 'list' && <ListForm id={req.id} onClose={close} />}
+      {req?.kind === 'plan' && <PlanForm id={req.id} onClose={close} />}
       {req?.kind === 'item' && <ItemForm listId={req.listId} itemId={req.itemId} onClose={close} />}
     </FormsCtx.Provider>
   );
 }
 
+/** "Move to trash" inside an edit form: kept 30 days, with Undo right after. */
+function TrashButton({ id, what, after, onClose }: { id: string; what: string; after: string; onClose: () => void }) {
+  const { actions } = useStore();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn btn-quiet btn-danger-text"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        const r = await actions.trashRecord(id, what);
+        setBusy(false);
+        if (r.ok) {
+          onClose();
+          navigate(after);
+        }
+      }}
+    >
+      <Icon name="trash" size={17} /> Move to trash
+    </button>
+  );
+}
+
 // ------------------------------------------------------------------ task
 
-function TaskForm({ prefill, onClose }: { prefill?: Partial<Values>; onClose: () => void }) {
+function TaskForm({ id, prefill, onClose }: { id?: string; prefill?: Partial<Values>; onClose: () => void }) {
   const { state, actions } = useStore();
   const { toast } = useFeedback();
+  const existing = id ? state.tasks.find((t) => t.id === id) : undefined;
   const noPlan = (v: Values) => !v.planId;
   const repeats = (v: Values) => noPlan(v) && v.repeat !== 'none';
   const fields: FieldDef[] = [
@@ -65,7 +98,7 @@ function TaskForm({ prefill, onClose }: { prefill?: Partial<Values>; onClose: ()
     { name: 'due', label: 'Due date', type: 'date', hint: 'Leave blank for no date. Undated tasks are never shown as late.' },
     {
       name: 'planId', label: 'Part of a plan', type: 'select',
-      options: [{ value: '', label: 'No, just a household task' }, ...state.plans.filter((p: Plan) => p.status === 'active').map((p) => ({ value: p.id, label: p.title }))],
+      options: [{ value: '', label: 'No, just a household task' }, ...state.plans.filter((p: Plan) => p.status === 'active' || p.id === existing?.planId).map((p) => ({ value: p.id, label: p.title }))],
     },
     {
       name: 'repeat', label: 'Repeat', type: 'select', showIf: noPlan,
@@ -82,31 +115,38 @@ function TaskForm({ prefill, onClose }: { prefill?: Partial<Values>; onClose: ()
       options: [{ value: 'day', label: 'Days' }, { value: 'week', label: 'Weeks' }, { value: 'month', label: 'Months' }, { value: 'year', label: 'Years' }],
       hint: 'If a month doesn’t have that day (like the 31st), the month’s last day is used, and the following months go back to the original day.',
     },
-    { name: 'notes', label: 'Notes', type: 'textarea' },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000 },
   ];
   // The schedule model needs a due date to anchor to.
   const withRule = fields.map((f) => (f.name === 'due' ? { ...f, validate: (_: string, all: Values) => (all.repeat === 'schedule' && !all.planId && !all.due ? 'Add a due date to repeat on a schedule' : undefined) } : f));
-  const initial: Values = { title: '', assignee: 'both', due: '', planId: '', repeat: 'none', every: '1', unit: 'month', notes: '', ...prefill };
+  const initial: Values = existing
+    ? {
+        title: existing.title, assignee: existing.assignee, due: existing.due ?? '', planId: existing.planId ?? '', repeat: existing.recurrence?.mode ?? 'none',
+        every: String(existing.recurrence?.every ?? 1), unit: existing.recurrence?.unit ?? 'month', notes: existing.notes,
+      }
+    : { title: '', assignee: 'both', due: '', planId: '', repeat: 'none', every: '1', unit: 'month', notes: '', ...prefill };
   return (
     <FormSheet
-      title="New task"
+      title={existing ? 'Edit task' : 'New task'}
       fields={withRule}
       initial={initial}
-      submitLabel="Add task"
+      submitLabel={existing ? 'Save changes' : 'Add task'}
       note={SHARED}
       onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={existing.planId ? routes.plan(existing.planId) : routes.plans} onClose={onClose} />}
       onSubmit={async (v) => {
         const standalone = !v.planId;
-        const ok = await actions.addTask({
+        const input = {
           title: v.title ?? '',
           assignee: (v.assignee as Assignee) || 'both',
           due: v.due || undefined,
           planId: v.planId || undefined,
           notes: v.notes ?? '',
           recurrence: standalone && v.repeat && v.repeat !== 'none' ? { mode: v.repeat as RecurrenceMode, every: Number(v.every || '1'), unit: (v.unit as RecurrenceUnit) || 'month' } : undefined,
-        });
-        if (ok) toast('Task added.');
-        return ok;
+        };
+        const r = existing ? await actions.saveTask(existing.id, input) : await actions.addTask(input);
+        if (r.ok) toast(existing ? 'Task saved.' : 'Task added.');
+        return done(r);
       }}
     />
   );
@@ -143,33 +183,38 @@ function ContactForm({ id, onClose }: { id?: string; onClose: () => void }) {
       submitLabel={existing ? 'Save changes' : 'Add contact'}
       note={`${SHARED} Saving a contact doesn’t send them anything.`}
       onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.name}”`} after={routes.contacts} onClose={onClose} />}
       onSubmit={async (v) => {
-        const saved = await actions.saveContact(existing?.id ?? null, { name: v.name ?? '', category: v.category ?? '', role: v.role ?? '', phone: v.phone ?? '', fax: v.fax ?? '', email: v.email ?? '', address: v.address ?? '', website: v.website ?? '', note: v.note ?? '' });
-        if (saved) {
+        const r = await actions.saveContact(existing?.id ?? null, {
+          name: v.name ?? '', category: v.category ?? '', role: v.role ?? '', phone: v.phone ?? '', fax: v.fax ?? '', email: v.email ?? '', address: v.address ?? '', website: v.website ?? '', note: v.note ?? '',
+        });
+        if (r.ok) {
           toast(existing ? 'Contact saved.' : 'Contact added.');
-          if (!existing) navigate(routes.record(saved));
+          if (!existing) navigate(routes.record(r.value));
         }
-        return saved !== null;
+        return done(r);
       }}
     />
   );
 }
 
-/** Edits a home reference card. Protected fields are never editable here (they use the protected-field path in Stage 2). */
+// ------------------------------------------------------------------ home cards
+
+/** Edits a home reference card. Protected values are never edited here (see ProtectedValue). */
 function HomeRecordForm({ id, onClose }: { id: string; onClose: () => void }) {
   const { state, actions } = useStore();
   const { toast } = useFeedback();
   const rec = state.home.find((r) => r.id === id);
   if (!rec) return null;
-  const ordinary = rec.fields.map((f, i) => ({ f, i })).filter(({ f }) => !f.protected);
-  const typeOf = (k: string): FieldDef['type'] => (k === 'phone' || k === 'fax' ? 'tel' : k === 'email' ? 'email' : k === 'url' ? 'url' : 'text');
+  const ordinary = rec.fields.filter((f) => !f.protected);
+  const typeOf = (k: string): FieldDef['type'] => (k === 'phone' || k === 'fax' ? 'tel' : k === 'email' ? 'email' : k === 'url' ? 'url' : k === 'date' ? 'date' : 'text');
   const fields: FieldDef[] = [
     { name: 'title', label: 'Title', required: true, maxLength: 100 },
-    ...ordinary.map(({ f, i }): FieldDef => ({ name: `f${i}`, label: f.label, type: typeOf(f.kind), maxLength: 300 })),
+    ...ordinary.map((f): FieldDef => ({ name: `f:${f.id}`, label: f.label, type: typeOf(f.kind), maxLength: 300, hint: f.kind === 'fax' ? 'Copy-only. Never shown as a call link.' : undefined })),
     { name: 'notes', label: 'Notes', type: 'textarea' },
   ];
   const initial: Values = { title: rec.title, notes: rec.notes };
-  for (const { f, i } of ordinary) initial[`f${i}`] = f.value ?? '';
+  for (const f of ordinary) initial[`f:${f.id}`] = f.value ?? '';
   const protectedCount = rec.fields.length - ordinary.length;
   return (
     <FormSheet
@@ -177,16 +222,79 @@ function HomeRecordForm({ id, onClose }: { id: string; onClose: () => void }) {
       fields={fields}
       initial={initial}
       submitLabel="Save changes"
-      note={`${SHARED}${protectedCount ? ' Protected fields are managed separately and aren’t shown here.' : ''}`}
+      note={`${SHARED} Clearing a field removes it.${protectedCount ? ' Protected fields are managed on the card itself and aren’t shown here.' : ''}`}
       onClose={onClose}
+      extraAction={<TrashButton id={rec.id} what={`“${rec.title}”`} after={`${routes.info}?who=home`} onClose={onClose} />}
       onSubmit={async (v) => {
-        const nextFields = rec.fields.map((f, i) => (f.protected ? f : { ...f, value: v[`f${i}`] ?? '' })).filter((f) => f.protected || f.value);
-        const ok = await actions.saveHomeRecord(rec.id, { title: v.title ?? rec.title, notes: v.notes ?? '', fields: nextFields });
-        if (ok) toast('Saved.');
-        return ok;
+        const nextFields = rec.fields.map((f) => (f.protected ? f : { ...f, value: v[`f:${f.id}`] ?? '' })).filter((f) => f.protected || f.value);
+        const r = await actions.saveHomeRecord(rec.id, { title: v.title ?? rec.title, notes: v.notes ?? '', fields: nextFields });
+        if (r.ok) toast('Saved.');
+        return done(r);
       }}
     />
   );
+}
+
+const FIELD_KIND_LABEL: Array<{ value: FieldKind; label: string }> = [
+  { value: 'text', label: 'Text' },
+  { value: 'phone', label: 'Phone number' },
+  { value: 'fax', label: 'Fax number (copy-only)' },
+  { value: 'address', label: 'Address' },
+  { value: 'email', label: 'Email' },
+  { value: 'url', label: 'Web address' },
+  { value: 'identifier', label: 'Number or ID' },
+  { value: 'date', label: 'Date' },
+];
+
+/** Adds one field to a home card: an ordinary value, or a protected one saved separately. */
+function FieldForm({ recordId, onClose }: { recordId: string; onClose: () => void }) {
+  const { state, actions, backend } = useStore();
+  const { toast } = useFeedback();
+  const rec = state.home.find((r) => r.id === recordId);
+  if (!rec) return null;
+  const live = backend.mode === 'live';
+  const ordinary = (v: Values) => v.protection !== 'protected';
+  const fields: FieldDef[] = [
+    { name: 'label', label: 'Field name', required: true, maxLength: 60, placeholder: 'e.g. Account number, Gate code' },
+    { name: 'kind', label: 'Kind', type: 'select', options: FIELD_KIND_LABEL },
+    {
+      name: 'protection', label: 'Protection', type: 'select',
+      options: [
+        { value: 'ordinary', label: 'Ordinary — shown, searchable, in exports' },
+        ...(live ? [{ value: 'protected', label: 'Protected — encrypted, shown only when revealed' }] : []),
+      ],
+      hint: live ? 'A protected value is never searchable, never in summaries or exports. You’ll enter it on the card after saving.' : 'Protected fields need the signed-in app; the demo doesn’t store protected values.',
+    },
+    { name: 'value', label: 'Value', showIf: ordinary, maxLength: 300, validate: (val, all) => validateByKind(all.kind, val) },
+  ];
+  return (
+    <FormSheet
+      title={`Add a field to ${rec.title}`}
+      fields={fields}
+      initial={{ label: '', kind: 'text', protection: 'ordinary', value: '' }}
+      submitLabel="Add field"
+      note={SHARED}
+      onClose={onClose}
+      onSubmit={async (v) => {
+        const kind = (v.kind as FieldKind) || 'text';
+        const field = v.protection === 'protected' ? { id: newRowId('f'), label: v.label ?? '', kind, protected: true } : { id: newRowId('f'), label: v.label ?? '', kind, value: v.value ?? '' };
+        if (!field.protected && !field.value) return 'Enter a value, or choose Protected to enter it securely afterwards.';
+        const r = await actions.saveHomeRecord(rec.id, { title: rec.title, notes: rec.notes, fields: [...rec.fields, field] });
+        if (r.ok) toast(field.protected ? 'Field added. Enter its value on the card.' : 'Field added.');
+        return done(r);
+      }}
+    />
+  );
+}
+
+function validateByKind(kind: string | undefined, raw: string): string | undefined {
+  const v = raw.trim();
+  if (!v) return undefined;
+  if ((kind === 'phone' || kind === 'fax') && !/^[0-9\s().+\-x#,]{3,30}$/i.test(v)) return 'Use digits and ( ) + - only';
+  if (kind === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Enter a valid email address';
+  if (kind === 'url' && !/^(https?:\/\/)?[^\s]+\.[^\s]+$/i.test(v)) return 'Enter a web address';
+  if (kind === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'Use the form YYYY-MM-DD';
+  return undefined;
 }
 
 // ------------------------------------------------------------------ other information
@@ -197,7 +305,7 @@ function InfoForm({ title, onClose }: { title?: string; onClose: () => void }) {
   const fields: FieldDef[] = [
     { name: 'title', label: 'Title', required: true, maxLength: 100, placeholder: 'e.g. Trash pickup days' },
     { name: 'template', label: 'Category', type: 'select', options: (Object.keys(HOME_TEMPLATE_LABEL) as HomeTemplate[]).map((t) => ({ value: t, label: HOME_TEMPLATE_LABEL[t] })).sort((a, b) => (a.value === 'other' ? -1 : b.value === 'other' ? 1 : 0)) },
-    { name: 'details', label: 'Details', type: 'textarea', hint: 'Passwords, recovery codes, and bank logins belong in your password manager — name the entry here instead.' },
+    { name: 'details', label: 'Details', type: 'textarea', maxLength: 300, hint: 'Passwords, recovery codes, and bank logins belong in your password manager — name the entry here instead.' },
   ];
   return (
     <FormSheet
@@ -208,18 +316,46 @@ function InfoForm({ title, onClose }: { title?: string; onClose: () => void }) {
       note={SHARED}
       onClose={onClose}
       onSubmit={async (v) => {
-        const id = await actions.addInfo({ template: (v.template as HomeTemplate) || 'other', title: v.title ?? '', details: v.details ?? '', notes: '' });
-        if (id) {
+        const r = await actions.addInfo({ template: (v.template as HomeTemplate) || 'other', title: v.title ?? '', details: v.details ?? '', notes: '' });
+        if (r.ok) {
           toast('Saved to Home.');
-          navigate(routes.record(id));
+          navigate(routes.record(r.value));
         }
-        return id !== null;
+        return done(r);
       }}
     />
   );
 }
 
-// ------------------------------------------------------------------ work location
+// ------------------------------------------------------------------ work: profile, locations, credentials
+
+function ProfileForm({ id, onClose }: { id: MemberId; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const p = state.profiles.find((x) => x.id === id);
+  if (!p) return null;
+  const fields: FieldDef[] = [
+    { name: 'displayName', label: 'Name as it appears on the work summary', maxLength: 80 },
+    { name: 'specialty', label: 'Specialty', maxLength: 120 },
+    { name: 'organization', label: 'Organization', maxLength: 120 },
+    { name: 'npi', label: 'NPI', maxLength: 10, hint: 'A public 10-digit professional identifier. It appears in the work summary.', validate: (v) => (v && !/^\d{10}$/.test(v) ? 'An NPI is 10 digits' : undefined) },
+  ];
+  return (
+    <FormSheet
+      title={`${MEMBERS[id].name}’s work details`}
+      fields={fields}
+      initial={{ displayName: p.displayName, specialty: p.specialty, organization: p.organization, npi: p.npi }}
+      submitLabel="Save changes"
+      note={`${SHARED} DEA and other protected numbers go on a credential, never here.`}
+      onClose={onClose}
+      onSubmit={async (v) => {
+        const r = await actions.saveProfile(id, { displayName: v.displayName ?? '', specialty: v.specialty ?? '', organization: v.organization ?? '', npi: v.npi ?? '' });
+        if (r.ok) toast('Work details saved.');
+        return done(r);
+      }}
+    />
+  );
+}
 
 function LocationForm({ owner, id, onClose }: { owner: MemberId; id?: string; onClose: () => void }) {
   const { state, actions } = useStore();
@@ -247,16 +383,48 @@ function LocationForm({ owner, id, onClose }: { owner: MemberId; id?: string; on
       submitLabel={existing ? 'Save changes' : 'Add location'}
       note={SHARED}
       onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.label}”`} after={routes.profile(existing.owner)} onClose={onClose} />}
       onSubmit={async (v) => {
-        const saved = await actions.saveLocation(existing?.id ?? null, owner, {
+        const r = await actions.saveLocation(existing?.id ?? null, owner, {
           label: v.label ?? '', organization: v.organization ?? '', address: v.address ?? '', mainPhone: v.mainPhone ?? '', directPhone: v.directPhone ?? '',
           fax: v.fax ?? '', schedulingPhone: v.schedulingPhone ?? '', notes: v.notes ?? '',
         });
-        if (saved) {
+        if (r.ok) {
           toast(existing ? 'Location saved.' : 'Location added.');
-          if (!existing) navigate(routes.record(saved));
+          if (!existing) navigate(routes.record(r.value));
         }
-        return saved !== null;
+        return done(r);
+      }}
+    />
+  );
+}
+
+function CredentialForm({ owner, id, onClose }: { owner: MemberId; id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.credentials.find((c) => c.id === id) : undefined;
+  const fields: FieldDef[] = [
+    { name: 'type', label: 'Credential', required: true, maxLength: 80, placeholder: 'e.g. DEA registration, State license' },
+    { name: 'issuer', label: 'Issuing body', maxLength: 120 },
+    { name: 'expires', label: 'Expires', type: 'date' },
+    { name: 'renewalUrl', label: 'Renewal link', type: 'url' },
+  ];
+  return (
+    <FormSheet
+      title={existing ? `Edit ${existing.type}` : `Add a credential for ${MEMBERS[owner].name}`}
+      fields={fields}
+      initial={{ type: existing?.type ?? '', issuer: existing?.issuer ?? '', expires: existing?.expires ?? '', renewalUrl: existing?.renewalUrl ?? '' }}
+      submitLabel={existing ? 'Save changes' : 'Add credential'}
+      note={`${SHARED} The number itself isn’t entered here: it’s saved encrypted on the credential’s page and shown only when someone taps Reveal.`}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.type}”`} after={routes.profile(existing.owner)} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const r = await actions.saveCredential(existing?.id ?? null, owner, { type: v.type ?? '', issuer: v.issuer ?? '', expires: v.expires || undefined, renewalUrl: v.renewalUrl || undefined });
+        if (r.ok) {
+          toast(existing ? 'Credential saved.' : 'Credential added.');
+          if (!existing) navigate(routes.record(r.value));
+        }
+        return done(r);
       }}
     />
   );
@@ -264,53 +432,60 @@ function LocationForm({ owner, id, onClose }: { owner: MemberId; id?: string; on
 
 // ------------------------------------------------------------------ list / plan / item
 
-function ListForm({ onClose }: { onClose: () => void }) {
-  const { actions } = useStore();
+function ListForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const existing = id ? state.lists.find((l) => l.id === id) : undefined;
   const fields: FieldDef[] = [
     { name: 'title', label: 'List name', required: true, maxLength: 80, placeholder: 'e.g. Packing, Hardware store' },
     { name: 'description', label: 'Description', maxLength: 200 },
   ];
   return (
     <FormSheet
-      title="New list"
+      title={existing ? `Edit ${existing.title}` : 'New list'}
       fields={fields}
-      initial={{ title: '', description: '' }}
-      submitLabel="Create list"
+      initial={{ title: existing?.title ?? '', description: existing?.description ?? '' }}
+      submitLabel={existing ? 'Save changes' : 'Create list'}
       note={SHARED}
       onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={routes.lists} onClose={onClose} />}
       onSubmit={async (v) => {
-        const id = await actions.newList(v.title ?? '', v.description ?? '');
-        if (id) navigate(routes.list(id));
-        return id !== null;
+        const r = await actions.saveList(existing?.id ?? null, v.title ?? '', v.description ?? '');
+        if (r.ok && !existing) navigate(routes.list(r.value));
+        return done(r);
       }}
     />
   );
 }
 
-function PlanForm({ onClose }: { onClose: () => void }) {
-  const { actions } = useStore();
+function PlanForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
   const { toast } = useFeedback();
+  const existing = id ? state.plans.find((p) => p.id === id) : undefined;
   const fields: FieldDef[] = [
     { name: 'title', label: 'Plan name', required: true, maxLength: 100 },
     { name: 'template', label: 'Type', type: 'select', options: [{ value: 'home', label: 'Home project' }, { value: 'travel', label: 'Travel' }, { value: 'wedding', label: 'Wedding' }, { value: 'custom', label: 'Custom' }] },
     { name: 'description', label: 'Description', type: 'textarea' },
     { name: 'target', label: 'Target date', type: 'date' },
+    ...(existing ? [{ name: 'status', label: 'Status', type: 'select' as const, options: [{ value: 'active', label: 'Active' }, { value: 'done', label: 'Finished' }] }] : []),
   ];
   return (
     <FormSheet
-      title="New plan"
+      title={existing ? `Edit ${existing.title}` : 'New plan'}
       fields={fields}
-      initial={{ title: '', template: 'home', description: '', target: '' }}
-      submitLabel="Create plan"
-      note={SHARED}
+      initial={existing ? { title: existing.title, template: existing.template, description: existing.description, target: existing.target ?? '', status: existing.status } : { title: '', template: 'home', description: '', target: '' }}
+      submitLabel={existing ? 'Save changes' : 'Create plan'}
+      note={existing ? `${SHARED} Moving a plan to the trash takes its tasks with it; restoring brings them back.` : SHARED}
       onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={routes.plans} onClose={onClose} />}
       onSubmit={async (v) => {
-        const id = await actions.addPlan({ title: v.title ?? '', description: v.description ?? '', target: v.target || undefined, template: (v.template as Plan['template']) || 'custom' });
-        if (id) {
-          toast('Plan created.');
-          navigate(routes.plan(id));
+        const r = await actions.savePlan(existing?.id ?? null, {
+          title: v.title ?? '', description: v.description ?? '', target: v.target || undefined, template: (v.template as Plan['template']) || 'custom', status: (v.status as Plan['status']) || 'active',
+        });
+        if (r.ok) {
+          toast(existing ? 'Plan saved.' : 'Plan created.');
+          if (!existing) navigate(routes.plan(r.value));
         }
-        return id !== null;
+        return done(r);
       }}
     />
   );
@@ -344,7 +519,7 @@ function ItemForm({ listId, itemId, onClose }: { listId: string; itemId: string;
           <Icon name="trash" size={17} /> Remove
         </button>
       }
-      onSubmit={(v) => actions.editItem(listId, itemId, { name: v.name ?? '', qty: v.qty ?? '', note: v.note ?? '' })}
+      onSubmit={async (v) => done(await actions.editItem(listId, itemId, { name: v.name ?? '', qty: v.qty ?? '', note: v.note ?? '' }))}
     />
   );
 }
