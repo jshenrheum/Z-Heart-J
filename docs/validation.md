@@ -2,7 +2,7 @@
 
 Scope: secure sign-in, household-scoped persistence, protected fields, lists, tasks, conflicts, trash, export, demo isolation (Stage 2); acceptance verification, defect fixes, local preview, documentation (Stage 3). Stage 1's report is kept in [`validation-stage1.md`](validation-stage1.md).
 
-**Nothing has been deployed.** Everything below ran on one Linux machine against the real Worker code in workerd (Miniflare 5) with a real local D1 (SQLite) database, behind a local stand-in for Cloudflare Access that signs real RS256 tokens.
+**Deployed 26 October 2026** to https://z-heart-j.jshenrheum.workers.dev; the owner signed in through Access and confirmed it works. Everything below ran on one Linux machine against the real Worker code in workerd (Miniflare 5) with a real local D1 (SQLite) database, behind a local stand-in for Cloudflare Access that signs real RS256 tokens.
 
 **Environment.** Node 22.22, npm 10.9, React 19.3, TypeScript 6.0, Vite 7.3, wrangler 4.153 (workerd 2026-10-23), Playwright 1.64 driving Chromium 1243 (the only browser available here).
 
@@ -40,7 +40,7 @@ In my own Stage 2 code, caught by tests or review before this report: the first 
 
 ## Not verified — please check these yourself
 
-- **A real Cloudflare deployment**: Access login with your identity provider, the token the real Access sends, D1 in the cloud, the daily purge schedule, the custom domain. All were exercised only through the local stand-ins described above.
+- **The live deployment beyond a first sign-in**: the daily purge schedule in the cloud, both phones over time, and a session expiring for real. The owner's first sign-in worked.
 - **Real phones**: installing and using on iPhone Safari and Android Chrome, standalone mode, safe-area padding, the bottom nav against the iOS home indicator, the keyboard over forms, and the Access sign-in inside the installed app.
 - **Screen readers** (VoiceOver, TalkBack): structure, names, focus and live regions are checked programmatically only.
 - **Safari and Firefox rendering**: only Chromium was available.

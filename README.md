@@ -2,7 +2,7 @@
 
 A private, quiet place for Jeffrey and Zul to keep the practical details of their life — work numbers, the home address, the vet, the AC filter size — and a few small shared lists and tasks. Installable on both phones as an app.
 
-**Status: Stages 1–3 built and verified locally. Not deployed.** Deploying needs a few steps in your Cloudflare dashboard (see [Deploy](#deploy)). Results and what is *not* yet verified: [`docs/validation.md`](docs/validation.md).
+**Status: live at https://z-heart-j.jshenrheum.workers.dev** (deployed 26 October 2026, behind its own Cloudflare Access application). Every push to `main` deploys. Test results and what is still unverified: [`docs/validation.md`](docs/validation.md).
 
 ---
 
@@ -86,7 +86,7 @@ The emails and the key are secrets on purpose: they never go into this repositor
 
 ## Deploy
 
-Nothing has been deployed. It goes into the same Cloudflare account as RheumDx, but with everything of its own — Worker `z-heart-j`, database `z-heart-j`, its own Access application and secrets — so RheumDx is untouched. All of it can be done in the Cloudflare dashboard, from a phone if need be.
+Deployed. It lives in the same Cloudflare account as RheumDx, but with everything of its own — Worker `z-heart-j`, database `z-heart-j`, its own Access application and secrets — so RheumDx is untouched. All of it can be done in the Cloudflare dashboard, from a phone if need be.
 
 1. **Database.** Storage & databases → D1 → Create database → name `z-heart-j`. Put its Database ID into `wrangler.jsonc` (`database_id`) and push.
 2. **Connect the repository.** Workers & Pages → Create → Import a repository → GitHub → `Z-Heart-J` (give Cloudflare's GitHub app access to it if asked). Project name `z-heart-j`; build command `npm run build`; deploy command `npm run db:migrate && npx wrangler deploy`. Every push to `main` then deploys, applying new migrations first. Until step 4 is done the site answers "Not set up yet" — it refuses everyone while a setting is missing.
