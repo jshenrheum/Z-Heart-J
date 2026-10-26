@@ -106,9 +106,9 @@ export function buildIndex(h: Household, today: DateStr): SearchDoc[] {
     });
     for (const f of r.fields) {
       if (f.protected) {
-        add({ id: `${r.id}-${f.label}`, kind: 'field', title: f.label, context: `${r.title} · Home`, route: routes.record(r.id), aliases: [], text: '', protectedNote: PROTECTED_NOTE, fieldKind: f.kind });
+        add({ id: `${r.id}-${f.id}`, kind: 'field', title: f.label, context: `${r.title} · Home`, route: routes.record(r.id), aliases: [], text: '', protectedNote: PROTECTED_NOTE, fieldKind: f.kind });
       } else if (f.value) {
-        add({ id: `${r.id}-${f.label}`, kind: 'field', title: f.label, context: `${r.title} · Home`, route: routes.record(r.id), aliases: fieldAliases(f.label), text: f.value, value: f.value, fieldKind: f.kind });
+        add({ id: `${r.id}-${f.id}`, kind: 'field', title: f.label, context: `${r.title} · Home`, route: routes.record(r.id), aliases: fieldAliases(f.label), text: f.value, value: f.value, fieldKind: f.kind });
       }
     }
   }

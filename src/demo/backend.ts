@@ -75,6 +75,7 @@ export function createDemoBackend(): DemoBackend {
 
     async remove(id, version) {
       await pause();
+      if (store.get(id)?.deletedAt) return { rows: [], removed: [id] };
       const e = liveEntry(id);
       if (!DELETABLE.includes(e.row.kind)) throw new SaveError('That can’t be deleted.', 400);
       if (e.row.version !== version) throw new ConflictError(e.row);

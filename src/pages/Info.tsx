@@ -123,7 +123,7 @@ function CredentialCard({ c, today, prefix }: { c: Credential; today: DateStr; p
       sub={c.issuer}
       meta={
         <span className="chip-row">
-          <Chip tone="lock" icon="lock">Number protected</Chip>
+          <Chip tone="lock" icon="lock">{c.hasValue ? 'Number protected' : 'No number saved'}</Chip>
           {expiryChip(c.expires, today)}
         </span>
       }

@@ -287,6 +287,12 @@ describe('trash: soft delete, cascade, restore, 30-day purge', () => {
     assert.equal(trash.data.entries[0].deletedBy, 'jeffrey');
   });
 
+  it('a repeated delete (first answer lost) succeeds instead of failing', async () => {
+    const r = await c.del('/api/records/list-t?version=1');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.data.removed, ['list-t']);
+  });
+
   it('won’t restore an item on its own while its list is in the trash', async () => {
     assert.equal((await c.post('/api/restore', { ids: ['item-t0'] })).status, 409);
   });

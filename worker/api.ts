@@ -275,7 +275,11 @@ async function update(ctx: Ctx, id: string): Promise<Response> {
 }
 
 async function remove(ctx: Ctx, id: string): Promise<Response> {
-  const row = await live(ctx, id);
+  const existing = await getRow(ctx.db, ctx.hh, id);
+  if (!existing) throw new ApiError(404, 'not_found', 'That isn’t here any more.');
+  // Already in the trash (a retry whose first attempt landed): same outcome.
+  if (existing.deleted_at) return json(200, change([], [id]));
+  const row = existing;
   if (!DELETABLE.includes(row.kind)) throw new ApiError(400, 'invalid', 'That record can’t be deleted.');
   const version = versionOf(ctx.url.searchParams.get('version'));
   if (row.version !== version) throw conflict(row, (await rowsById(ctx.db, ctx.hh, [id]))[0]?.stored);

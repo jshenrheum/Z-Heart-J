@@ -5,6 +5,7 @@ import {
 import { ConflictError, SaveError, SessionError, type Backend } from './backend.ts';
 import { displayDate, todayIn, type DateStr } from '../lib/dates.ts';
 import { useFeedback } from '../lib/feedback.tsx';
+import { resolvePin } from '../lib/pins.ts';
 import { MAX_PINS, newRowId, toHousehold, type Change, type Kind, type Row } from '../lib/records.ts';
 import type { Recurrence } from '../lib/recurrence.ts';
 
@@ -508,7 +509,8 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
       restore: (ids) => restoreIds(ids, 'that wasn’t restored'),
 
       togglePin(target) {
-        const mine = stateRef.current.pins[meRef.current];
+        // Pins to things that are gone (deleted, or in the trash) don't count and are dropped.
+        const mine = stateRef.current.pins[meRef.current].filter((p) => resolvePin(stateRef.current, p, meRef.current) !== null);
         const has = mine.some((p) => p.kind === target.kind && p.id === target.id);
         if (!has && mine.length >= MAX_PINS) {
           toast('You can pin up to six shortcuts. Unpin one first.', { tone: 'error' });
