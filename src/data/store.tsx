@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  MEMBERS, type Assignee, type EventRepeat, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type WorkLocation, type Contact, type Credential,
+  MEMBERS, type Assignee, type Audit, type BudgetItem, type EventRepeat, type Guest, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type Vendor, type WorkLocation, type Contact, type Credential,
 } from './types.ts';
 import { ConflictError, SaveError, SessionError, type Backend } from './backend.ts';
 import { displayDate, todayIn, type DateStr } from '../lib/dates.ts';
 import { useFeedback } from '../lib/feedback.tsx';
 import { resolvePin } from '../lib/pins.ts';
-import { MAX_PINS, newRowId, toHousehold, type Change, type Kind, type Row } from '../lib/records.ts';
+import { MAX_PINS, newRowId, toHousehold, WEDDING_ID, type Change, type Kind, type Row } from '../lib/records.ts';
 import type { Recurrence } from '../lib/recurrence.ts';
 
 /**
@@ -64,6 +64,19 @@ export interface EventInput {
   repeat?: EventRepeat;
 }
 
+export interface WeddingInput {
+  date?: DateStr;
+  time?: string;
+  venue: string;
+  address: string;
+  budget?: number;
+  schedule: string;
+  notes: string;
+}
+export type VendorInput = Omit<Vendor, 'id' | keyof Audit>;
+export type GuestInput = Omit<Guest, 'id' | keyof Audit>;
+export type BudgetInput = Omit<BudgetItem, 'id' | keyof Audit>;
+
 export interface NewTask {
   title: string;
   assignee: Assignee;
@@ -94,6 +107,12 @@ export interface Actions {
   saveCredential: (id: string | null, owner: MemberId, v: CredentialInput) => Promise<Outcome<string>>;
   addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<Outcome<string>>;
   saveEvent: (id: string | null, v: EventInput) => Promise<Outcome<string>>;
+  saveWedding: (v: WeddingInput) => Promise<Outcome>;
+  saveVendor: (id: string | null, v: VendorInput) => Promise<Outcome<string>>;
+  saveGuest: (id: string | null, v: GuestInput) => Promise<Outcome<string>>;
+  /** A one-tap RSVP change, with Undo. */
+  setRsvp: (id: string, rsvp: Guest['rsvp']) => Promise<boolean>;
+  saveBudgetItem: (id: string | null, v: BudgetInput) => Promise<Outcome<string>>;
   /** Removes one day of a repeating event (Undo puts it back). */
   skipEventDay: (id: string, day: DateStr) => Promise<Outcome>;
   /** Moves a record (and a list's items or a plan's tasks) to the trash, with Undo. */
@@ -126,7 +145,7 @@ const Ctx = createContext<Store | null>(null);
 
 const POLL_MS = 15_000;
 const nowIso = () => new Date().toISOString();
-const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], pins: { jeffrey: [], zul: [] } };
+const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
 
 function index(rows: Row[]): Rows {
   const out: Rows = {};
@@ -526,6 +545,58 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         }
         const nid = newRowId('ev');
         return create(`“${data.title as string}” wasn’t saved`, 'event', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async saveWedding(v) {
+        const data: Record<string, unknown> = { venue: v.venue.trim(), address: v.address.trim(), schedule: v.schedule.trim(), notes: v.notes.trim() };
+        if (v.date) data.date = v.date;
+        if (v.time) data.time = v.time;
+        if (v.budget !== undefined) data.budget = v.budget;
+        if (row(WEDDING_ID)) return update('the wedding details weren’t saved', WEDDING_ID, data, true);
+        const r = await create('the wedding details weren’t saved', 'wedding', WEDDING_ID, data, { quiet: true });
+        return r.ok ? { ok: true, value: undefined } : r;
+      },
+
+      async saveVendor(id, v) {
+        const data: Record<string, unknown> = { ...v, name: v.name.trim(), notes: v.notes.trim() };
+        if (v.deposit !== 'due') delete data.depositDue;
+        else if (!v.depositDue) delete data.depositDue;
+        if (id) {
+          const r = await update(`“${v.name}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('vendor');
+        return create(`“${v.name}” wasn’t saved`, 'vendor', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async saveGuest(id, v) {
+        const data = { ...v, name: v.name.trim(), notes: v.notes.trim() };
+        if (id) {
+          const r = await update(`“${v.name}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('guest');
+        return create(`“${v.name}” wasn’t saved`, 'guest', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async setRsvp(id, rsvp) {
+        const g = row(id);
+        if (!g || g.data.rsvp === rsvp) return false;
+        const was = g.data.rsvp as Guest['rsvp'];
+        const name = g.data.name as string;
+        const r = await update(`${name}’s RSVP wasn’t saved`, id, { ...g.data, rsvp });
+        if (r.ok) toast(`${name}: ${rsvp === 'yes' ? 'coming' : rsvp === 'no' ? 'not coming' : 'no answer yet'}.`, { action: { label: 'Undo', onClick: () => void a.setRsvp(id, was) } });
+        return r.ok;
+      },
+
+      async saveBudgetItem(id, v) {
+        const data = { ...v, title: v.title.trim(), notes: v.notes.trim() };
+        if (id) {
+          const r = await update(`“${v.title}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('budget');
+        return create(`“${v.title}” wasn’t saved`, 'budget', nid, data, { quiet: true, value: () => nid });
       },
 
       async skipEventDay(id, day) {

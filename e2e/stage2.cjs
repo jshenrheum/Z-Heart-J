@@ -281,6 +281,20 @@ function startPreview() {
     await go(Z.page, '/lists/' + (await J.page.evaluate(() => fetch('/api/state').then((r) => r.json()).then((s) => s.rows.find((x) => x.kind === 'list').id))));
     eq(await Z.page.locator('#to-get .tile', { hasText: 'Bread' }).count(), 0, 'nothing was saved while signed out');
   });
+  await check('wedding: Jeffrey sets the date; Zul’s Home shows the countdown', async () => {
+    await go(J.page, '/wedding');
+    await J.page.getByRole('button', { name: 'Set the date' }).first().click();
+    const d = J.page.getByRole('dialog');
+    await d.getByLabel(/^The date/).fill('2027-06-12');
+    await d.getByLabel(/^Venue/).fill('Placeholder Hall');
+    await d.getByLabel(/Overall budget/).fill('20,000');
+    await d.getByRole('button', { name: 'Save' }).click();
+    await d.waitFor({ state: 'detached', timeout: 5000 });
+    ok(/^\d+ days$/.test((await J.page.locator('.wed-hero-count').innerText()).trim()), 'countdown');
+    await go(Z.page, '/');
+    await Z.page.locator('.wed-home').waitFor({ timeout: 20000 });
+    ok((await Z.page.locator('.wed-home').innerText()).includes('Placeholder Hall'), 'Zul sees it on Home');
+  });
   await check('sign out: ends the session and returns to sign-in', async () => {
     await go(J.page, '/settings');
     await J.page.getByRole('button', { name: 'Sign out' }).click();

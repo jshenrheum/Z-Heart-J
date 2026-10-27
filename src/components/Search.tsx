@@ -83,7 +83,7 @@ export function SearchResults({ query, limit, showAll }: { query: string; limit:
 function ResultRow({ r }: { r: SearchResult }) {
   const { copy } = useFeedback();
   const d = r.doc;
-  const copyWhat = d.kind === 'contact' ? 'Phone' : d.kind === 'event' ? 'Address' : d.title;
+  const copyWhat = d.kind === 'contact' || d.kind === 'vendor' ? 'Phone' : d.kind === 'event' ? 'Address' : d.title;
   return (
     <li className="result">
       <Link to={d.route} className="result-main">

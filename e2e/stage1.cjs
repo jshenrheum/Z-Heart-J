@@ -407,6 +407,85 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- wedding
+  {
+    const { ctx, page } = await newPage();
+    await open(page, '/wedding');
+    await check('wedding: the overview counts down to the date, with the day’s schedule and the three numbers', async () => {
+      ok(/^\d+ days$/.test((await page.locator('.wed-hero-count').innerText()).trim()), 'countdown in days');
+      ok((await page.locator('.wed-schedule').innerText()).includes('Ceremony'), 'schedule shown');
+      eq(await page.locator('.wed-stats .wed-stat').count(), 3, 'three stats');
+      ok((await page.locator('.wed-stat').nth(2).innerText()).includes('$3,200'), 'paid total');
+    });
+    await check('wedding: six tabs fit the bottom bar without overflowing', async () => {
+      eq(await page.locator('nav.nav .nav-item').count(), 6, 'six tabs');
+      const r = await page.locator('nav.nav').evaluate((n) => ({ sw: n.scrollWidth, cw: n.clientWidth, labels: [...n.querySelectorAll('.nav-item span')].every((s) => s.scrollWidth <= s.clientWidth + 1) }));
+      ok(r.sw <= r.cw, 'no horizontal overflow');
+      ok(r.labels, 'no label is clipped');
+    });
+    await check('wedding: a guest’s RSVP changes with one tap, counts follow, and Undo puts it back', async () => {
+      await page.getByRole('link', { name: 'Guests' }).click();
+      const coming = () => page.locator('.wed-stats .wed-stat').first().innerText();
+      ok((await coming()).startsWith('4'), 'four coming to start');
+      await page.getByRole('button', { name: 'Example Couple (placeholder): coming' }).click();
+      await page.waitForTimeout(200);
+      ok((await coming()).startsWith('6'), 'the couple counts as two');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await page.waitForTimeout(250);
+      ok((await coming()).startsWith('4'), 'back to four');
+    });
+    await check('wedding: add a guest, a vendor with a deposit due, and a budget line', async () => {
+      await page.getByRole('button', { name: 'Add guest' }).click();
+      let d = page.getByRole('dialog');
+      await d.getByLabel(/^Guest/).fill('New Guest (test)');
+      await d.getByLabel(/People in the party/).fill('3');
+      await d.getByRole('button', { name: 'Add guest' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok(await page.getByRole('button', { name: 'Edit New Guest (test)' }).isVisible(), 'guest listed');
+      await page.getByRole('link', { name: 'Vendors' }).click();
+      await page.getByRole('button', { name: 'Add vendor' }).click();
+      d = page.getByRole('dialog');
+      await d.getByLabel(/^Vendor/).fill('Test Caterer');
+      await d.getByLabel(/^What for/).fill('Caterer');
+      await d.getByLabel(/^Status/).selectOption('booked');
+      await d.getByLabel(/^Deposit · /).selectOption('due');
+      await d.getByLabel(/Deposit due by/).fill('2026-10-28');
+      await d.getByRole('button', { name: 'Add vendor' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok((await page.locator('.wed-row', { hasText: 'Test Caterer' }).innerText()).includes('Deposit due'), 'deposit chip');
+      await page.getByRole('link', { name: 'Budget' }).click();
+      await page.getByRole('button', { name: 'Add line' }).click();
+      d = page.getByRole('dialog');
+      await d.getByLabel(/^What/).fill('Catering');
+      await d.getByLabel(/^Planned/).fill('6,000');
+      await d.getByLabel(/Paid so far/).fill('abc');
+      await d.getByRole('button', { name: 'Add line' }).click();
+      ok(await d.getByText(/Enter an amount/).isVisible(), 'bad amount refused');
+      await d.getByLabel(/Paid so far/).fill('1500');
+      await d.getByRole('button', { name: 'Add line' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok((await page.locator('.wed-totals').innerText()).includes('$4,700'), 'paid total updated');
+    });
+    await check('wedding: the deposit and the day itself show on the calendar', async () => {
+      await nav(page, 'Calendar').click();
+      await page.getByRole('button', { name: /^Wednesday, October 28/ }).click();
+      ok((await page.locator('section', { has: page.locator('#cal-day-h') }).innerText()).includes('Deposit due · Test Caterer'), 'deposit on its day');
+    });
+    await check('wedding: the checklist adds a task into the wedding plan', async () => {
+      await open(page, '/wedding?tab=checklist');
+      const before = await page.locator('.task').count();
+      await page.getByRole('button', { name: 'Add task' }).click();
+      const d = page.getByRole('dialog');
+      await d.getByLabel(/^Task/).fill('Order the rings (test)');
+      eq(await d.getByLabel(/Part of a plan/).inputValue(), 'plan-wedding', 'preset to the wedding plan');
+      await d.getByRole('button', { name: 'Add task' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      eq(await page.locator('.task').count(), before + 1, 'task added');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
   // ---------------------------------------------------------------- recurring tasks
   {
     const { ctx, page } = await newPage();
@@ -543,7 +622,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const imgNoAlt = [...document.querySelectorAll('img:not([alt])')].length;
       return { dupes, unnamed, h1, imgNoAlt };
     });
-    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/calendar', '/calendar/e/ev-dinner', '/calendar/e/ev-run', '/search', '/no-such-page']) {
+    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/calendar', '/calendar/e/ev-dinner', '/calendar/e/ev-run', '/wedding', '/wedding?tab=checklist', '/wedding?tab=vendors', '/wedding?tab=budget', '/wedding?tab=guests', '/search', '/no-such-page']) {
       await check(`a11y structure ${route}: one h1, unique ids, every control named`, async () => {
         await open(page, route);
         const r = await audit();

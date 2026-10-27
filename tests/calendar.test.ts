@@ -7,7 +7,7 @@ import { InvalidData, validateData } from '../src/lib/records.ts';
 const ev = (over: Partial<CalendarEvent>): CalendarEvent => ({
   id: 'e1', title: 'X', whose: 'both', date: '2026-01-31', location: '', notes: '', skips: [], updatedBy: 'jeffrey', updatedAt: '2026-01-01T00:00:00Z', version: 1, ...over,
 });
-const empty = (): Household => ({ profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], pins: { jeffrey: [], zul: [] } });
+const empty = (): Household => ({ profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } });
 
 test('a one-off event appears only on its day', () => {
   assert.deepEqual(occurrences(ev({ date: '2026-11-05' }), '2026-11-01', '2026-11-30'), ['2026-11-05']);

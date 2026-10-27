@@ -7,6 +7,8 @@ import { navigate } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
 import type { RecurrenceMode, RecurrenceUnit } from '../lib/recurrence.ts';
 import { todayIn } from '../lib/dates.ts';
+import { BUDGET_CATEGORIES, parseMoney, VENDOR_CATEGORIES } from '../lib/wedding.ts';
+import type { DepositStatus, Rsvp, VendorStatus } from '../data/types.ts';
 import type { EventRepeat } from '../data/types.ts';
 import { Icon } from './Icon.tsx';
 import { FormSheet, type FieldDef, type Values } from './FormSheet.tsx';
@@ -25,7 +27,11 @@ export type FormRequest =
   | { kind: 'list'; id?: string }
   | { kind: 'plan'; id?: string }
   | { kind: 'item'; listId: string; itemId: string }
-  | { kind: 'event'; id?: string; date?: string };
+  | { kind: 'event'; id?: string; date?: string }
+  | { kind: 'wedding' }
+  | { kind: 'vendor'; id?: string }
+  | { kind: 'guest'; id?: string }
+  | { kind: 'budget'; id?: string };
 
 const FormsCtx = createContext<{ open: (r: FormRequest) => void } | null>(null);
 export const useForms = () => {
@@ -57,6 +63,10 @@ export function FormsProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'plan' && <PlanForm id={req.id} onClose={close} />}
       {req?.kind === 'item' && <ItemForm listId={req.listId} itemId={req.itemId} onClose={close} />}
       {req?.kind === 'event' && <EventForm id={req.id} date={req.date} onClose={close} />}
+      {req?.kind === 'wedding' && <WeddingForm onClose={close} />}
+      {req?.kind === 'vendor' && <VendorForm id={req.id} onClose={close} />}
+      {req?.kind === 'guest' && <GuestForm id={req.id} onClose={close} />}
+      {req?.kind === 'budget' && <BudgetForm id={req.id} onClose={close} />}
     </FormsCtx.Provider>
   );
 }
@@ -582,6 +592,145 @@ function EventForm({ id, date, onClose }: { id?: string; date?: string; onClose:
           toast(existing ? 'Event saved.' : 'Event added.');
           if (!existing) navigate(routes.event(r.value));
         }
+        return done(r);
+      }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ wedding
+
+const moneyField = (value: string) => (parseMoney(value) === undefined ? 'Enter an amount, like 1200 or 1,200.50' : undefined);
+
+function WeddingForm({ onClose }: { onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const w = state.wedding;
+  const fields: FieldDef[] = [
+    { name: 'date', label: 'The date', type: 'date', hint: 'The countdown, the calendar and Home all follow it.' },
+    { name: 'time', label: 'Ceremony time', type: 'time' },
+    { name: 'venue', label: 'Venue', maxLength: 120 },
+    { name: 'address', label: 'Address', type: 'textarea', maxLength: 300 },
+    { name: 'budget', label: 'Overall budget', maxLength: 14, placeholder: 'e.g. 25,000', validate: moneyField },
+    { name: 'schedule', label: 'The day’s schedule', type: 'textarea', maxLength: 2000, placeholder: '3:00 PM Guests arrive\n4:00 PM Ceremony\n5:00 PM Cocktails', hint: 'One moment per line, time first.' },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 2000 },
+  ];
+  return (
+    <FormSheet
+      title="Wedding details"
+      fields={fields}
+      initial={{ date: w?.date ?? '', time: w?.time ?? '', venue: w?.venue ?? '', address: w?.address ?? '', budget: w?.budget === undefined ? '' : String(w.budget), schedule: w?.schedule ?? '', notes: w?.notes ?? '' }}
+      submitLabel="Save"
+      note={SHARED}
+      onClose={onClose}
+      onSubmit={async (v) => {
+        const budget = v.budget ? parseMoney(v.budget) : undefined;
+        const r = await actions.saveWedding({ date: v.date || undefined, time: v.time || undefined, venue: v.venue ?? '', address: v.address ?? '', budget: budget === 0 && !v.budget ? undefined : budget, schedule: v.schedule ?? '', notes: v.notes ?? '' });
+        if (r.ok) toast('Wedding details saved.');
+        return done(r);
+      }}
+    />
+  );
+}
+
+function VendorForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.vendors.find((v) => v.id === id) : undefined;
+  const depositDue = (v: Values) => v.deposit === 'due';
+  const fields: FieldDef[] = [
+    { name: 'name', label: 'Vendor', required: true, maxLength: 100, placeholder: 'e.g. the florist’s business name' },
+    { name: 'category', label: 'What for', required: true, maxLength: 60, suggestions: VENDOR_CATEGORIES },
+    { name: 'status', label: 'Status', type: 'select', required: true, options: [{ value: 'considering', label: 'Considering' }, { value: 'booked', label: 'Booked' }] },
+    { name: 'deposit', label: 'Deposit', type: 'select', required: true, options: [{ value: 'none', label: 'None needed' }, { value: 'due', label: 'Due' }, { value: 'paid', label: 'Paid' }] },
+    { name: 'depositDue', label: 'Deposit due by', type: 'date', showIf: depositDue, hint: 'Shows on the calendar.' },
+    { name: 'contact', label: 'Ask for', maxLength: 100 },
+    { name: 'phone', label: 'Phone', type: 'tel' },
+    { name: 'email', label: 'Email', type: 'email' },
+    { name: 'website', label: 'Website', type: 'url' },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000, placeholder: 'What’s included, the quote, who you spoke to…' },
+  ];
+  return (
+    <FormSheet
+      title={existing ? `Edit ${existing.name}` : 'Add vendor'}
+      fields={fields}
+      initial={existing
+        ? { name: existing.name, category: existing.category, status: existing.status, deposit: existing.deposit, depositDue: existing.depositDue ?? '', contact: existing.contact, phone: existing.phone, email: existing.email, website: existing.website, notes: existing.notes }
+        : { name: '', category: '', status: 'considering', deposit: 'none', depositDue: '', contact: '', phone: '', email: '', website: '', notes: '' }}
+      submitLabel={existing ? 'Save changes' : 'Add vendor'}
+      note={SHARED}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.name}”`} after={routes.weddingTab('vendors')} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const r = await actions.saveVendor(existing?.id ?? null, {
+          name: v.name ?? '', category: v.category ?? '', contact: v.contact ?? '', phone: v.phone ?? '', email: v.email ?? '', website: v.website ?? '',
+          status: (v.status as VendorStatus) || 'considering', deposit: (v.deposit as DepositStatus) || 'none', depositDue: v.depositDue || undefined, notes: v.notes ?? '',
+        });
+        if (r.ok) toast(existing ? 'Vendor saved.' : 'Vendor added.');
+        return done(r);
+      }}
+    />
+  );
+}
+
+function GuestForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.guests.find((g) => g.id === id) : undefined;
+  const fields: FieldDef[] = [
+    { name: 'name', label: 'Guest', required: true, maxLength: 100, placeholder: 'A person, or a couple or family as one line' },
+    { name: 'side', label: 'Whose guest', type: 'select', required: true, options: [...MEMBER_IDS.map((m) => ({ value: m, label: `${MEMBERS[m].name}’s` })), { value: 'both', label: 'Both of ours' }] },
+    { name: 'party', label: 'People in the party', type: 'number', min: 1, max: 20, hint: 'Counting them.' },
+    { name: 'rsvp', label: 'RSVP', type: 'select', required: true, options: [{ value: 'pending', label: 'No answer yet' }, { value: 'yes', label: 'Coming' }, { value: 'no', label: 'Not coming' }] },
+    { name: 'table', label: 'Table', maxLength: 20 },
+    { name: 'meal', label: 'Meal', maxLength: 60, placeholder: 'e.g. vegetarian' },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 500 },
+  ];
+  return (
+    <FormSheet
+      title={existing ? `Edit ${existing.name}` : 'Add guest'}
+      fields={fields}
+      initial={existing
+        ? { name: existing.name, side: existing.side, party: String(existing.party), rsvp: existing.rsvp, table: existing.table, meal: existing.meal, notes: existing.notes }
+        : { name: '', side: 'both', party: '1', rsvp: 'pending', table: '', meal: '', notes: '' }}
+      submitLabel={existing ? 'Save changes' : 'Add guest'}
+      note={SHARED}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.name}”`} after={routes.weddingTab('guests')} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const r = await actions.saveGuest(existing?.id ?? null, {
+          name: v.name ?? '', side: (v.side as Assignee) || 'both', party: Number(v.party || '1'), rsvp: (v.rsvp as Rsvp) || 'pending', table: v.table ?? '', meal: v.meal ?? '', notes: v.notes ?? '',
+        });
+        if (r.ok) toast(existing ? 'Guest saved.' : 'Guest added.');
+        return done(r);
+      }}
+    />
+  );
+}
+
+function BudgetForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.budget.find((b) => b.id === id) : undefined;
+  const fields: FieldDef[] = [
+    { name: 'title', label: 'What', required: true, maxLength: 100, placeholder: 'e.g. Venue hire' },
+    { name: 'category', label: 'Category', maxLength: 60, suggestions: BUDGET_CATEGORIES },
+    { name: 'planned', label: 'Planned', maxLength: 14, placeholder: 'e.g. 4,000', validate: moneyField },
+    { name: 'paid', label: 'Paid so far', maxLength: 14, placeholder: '0', validate: moneyField },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 500 },
+  ];
+  return (
+    <FormSheet
+      title={existing ? `Edit ${existing.title}` : 'Add budget line'}
+      fields={fields}
+      initial={existing ? { title: existing.title, category: existing.category, planned: String(existing.planned), paid: String(existing.paid), notes: existing.notes } : { title: '', category: '', planned: '', paid: '', notes: '' }}
+      submitLabel={existing ? 'Save changes' : 'Add line'}
+      note={SHARED}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={routes.weddingTab('budget')} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const r = await actions.saveBudgetItem(existing?.id ?? null, { title: v.title ?? '', category: v.category ?? '', planned: parseMoney(v.planned ?? '') ?? 0, paid: parseMoney(v.paid ?? '') ?? 0, notes: v.notes ?? '' });
+        if (r.ok) toast(existing ? 'Budget line saved.' : 'Budget line added.');
         return done(r);
       }}
     />

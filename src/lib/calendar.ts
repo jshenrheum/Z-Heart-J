@@ -1,5 +1,6 @@
 import type { Assignee, CalendarEvent, Household, MemberId } from '../data/types.ts';
 import { addDays, addMonthsClamped, diffDays, parseDate, type DateStr } from './dates.ts';
+import { WEDDING_ID } from './records.ts';
 import { routes } from './routes.ts';
 
 /**
@@ -8,7 +9,7 @@ import { routes } from './routes.ts';
  * nothing is entered twice. Pure functions over the household; no network.
  */
 
-export type CalSource = 'event' | 'task' | 'plan' | 'credential';
+export type CalSource = 'event' | 'task' | 'plan' | 'credential' | 'wedding' | 'deposit';
 
 export interface CalItem {
   /** Unique per occurrence. */
@@ -108,6 +109,14 @@ export function calendarItems(h: Household, from: DateStr, to: DateStr, who: Who
   for (const p of h.plans) {
     if (p.status !== 'active' || !inRange(p.target) || !matchesWho('both', who)) continue;
     items.push({ key: `plan:${p.id}`, source: 'plan', id: p.id, title: p.title, whose: 'both', date: p.target!, sub: 'Plan target date', route: routes.plan(p.id) });
+  }
+  if (h.wedding?.date && inRange(h.wedding.date)) {
+    const w = h.wedding;
+    items.push({ key: 'wedding', source: 'wedding', id: WEDDING_ID, title: 'Wedding day', whose: 'both', date: w.date!, startTime: w.time, sub: w.venue.split('\n')[0] || 'The big day', route: routes.wedding });
+  }
+  for (const v of h.vendors) {
+    if (v.deposit !== 'due' || !inRange(v.depositDue)) continue;
+    items.push({ key: `deposit:${v.id}`, source: 'deposit', id: v.id, title: `Deposit due · ${v.name}`, whose: 'both', date: v.depositDue!, sub: 'Wedding vendor', route: routes.weddingTab('vendors') });
   }
   for (const c of h.credentials) {
     if (!inRange(c.expires) || !matchesWho(c.owner, who)) continue;

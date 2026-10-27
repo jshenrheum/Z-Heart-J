@@ -1,6 +1,6 @@
 import {
-  MEMBER_IDS, type CalendarEvent, type Contact, type Credential, type FieldKind, type HomeField, type HomeRecord, type HomeTemplate, type Household, type ListItem,
-  type MemberId, type PinTarget, type Plan, type Profile, type SharedList, type Task, type WorkLocation,
+  MEMBER_IDS, type BudgetItem, type CalendarEvent, type Contact, type Credential, type FieldKind, type Guest, type HomeField, type HomeRecord, type HomeTemplate, type Household,
+  type ListItem, type MemberId, type PinTarget, type Plan, type Profile, type SharedList, type Task, type Vendor, type WeddingDetails, type WorkLocation,
 } from '../data/types.ts';
 import { isDateStr } from './dates.ts';
 import { safeUrl } from './summary.ts';
@@ -17,12 +17,14 @@ import { safeUrl } from './summary.ts';
  * protected field can never carry a value inside ordinary data.
  */
 
-export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'pins';
-export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'pins'];
-/** Kinds a client may create with the generic create call. */
-export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event'];
+export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'wedding' | 'vendor' | 'guest' | 'budget' | 'pins';
+export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget', 'pins'];
+/** Kinds a client may create with the generic create call ("wedding" only ever as the one record with id "wedding"). */
+export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget'];
 /** Kinds that can be moved to the trash. */
-export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event'];
+export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'vendor', 'guest', 'budget'];
+/** The one wedding record's id. */
+export const WEDDING_ID = 'wedding';
 
 export interface Row {
   id: string;
@@ -219,6 +221,12 @@ const recurrence = object({
   anchorDay: optional(int(1, 31)),
 });
 
+/** An amount in dollars: 0 to 10,000,000, kept to cents. */
+const money: Rule = (v, f) => {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 10_000_000) throw new InvalidData(f, 'Must be an amount from 0 to 10,000,000');
+  return Math.round(v * 100) / 100;
+};
+
 const SPECS: Record<Kind, Rule> = {
   profile: object({ displayName: text(80), specialty: text(120), organization: text(120), npi: (v, f) => {
     const s = text(10)(v, f) as string;
@@ -269,6 +277,23 @@ const SPECS: Record<Kind, Rule> = {
     e.skips = [...new Set(e.skips)].sort();
     return e;
   },
+  wedding: object({
+    date, time: optional(time), venue: text(120), address: text(300, { multiline: true }), budget: optional(money),
+    schedule: text(2000, { multiline: true }), notes: text(2000, { multiline: true }),
+  }),
+  vendor: (v, f) => {
+    const out = object({
+      name: text(100, { required: true }), category: text(60, { required: true }), contact: text(100), phone, email, website: url,
+      status: oneOf(['considering', 'booked'] as const), deposit: oneOf(['none', 'due', 'paid'] as const), depositDue: date, notes: text(1000, { multiline: true }),
+    })(v, f) as { deposit: string; depositDue?: string };
+    if (out.deposit !== 'due') delete out.depositDue;
+    return out;
+  },
+  guest: object({
+    name: text(100, { required: true }), side: oneOf([...MEMBER_IDS, 'both'] as const), party: int(1, 20), rsvp: oneOf(['pending', 'yes', 'no'] as const),
+    table: text(20), meal: text(60), notes: text(500, { multiline: true }),
+  }),
+  budget: object({ title: text(100, { required: true }), category: text(60), planned: money, paid: money, notes: text(500, { multiline: true }) }),
   pins: object({
     targets: (v, f) => {
       const list = array(object({ kind: oneOf(['profile', 'record', 'list', 'plan', 'contact'] as const), id }), MAX_PINS)(v, f) as PinTarget[];
@@ -330,6 +355,10 @@ export function rowTitle(row: Row): { title: string; context: string } {
     case 'plan': return { title: d.title ?? 'Plan', context: 'Plan' };
     case 'task': return { title: d.title ?? 'Task', context: 'Task' };
     case 'event': return { title: d.title ?? 'Event', context: 'Calendar event' };
+    case 'wedding': return { title: 'Wedding details', context: 'Wedding' };
+    case 'vendor': return { title: d.name ?? 'Vendor', context: 'Wedding vendor' };
+    case 'guest': return { title: d.name ?? 'Guest', context: 'Wedding guest' };
+    case 'budget': return { title: d.title ?? 'Budget line', context: 'Wedding budget' };
     default: return { title: row.id, context: row.kind };
   }
 }
@@ -343,7 +372,7 @@ const audit = (r: Row) => ({ updatedBy: r.updatedBy, updatedAt: r.updatedAt, ver
  * change still in flight. Only rows of the known kinds are used.
  */
 export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = new Set()): Household {
-  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], pins: { jeffrey: [], zul: [] } };
+  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
   const items = new Map<string, ListItem[]>();
   // Creation order, so cards keep their places as they're edited.
   const ordered = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
@@ -387,6 +416,18 @@ export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = n
         break;
       case 'event':
         h.events.push({ ...(d as Omit<CalendarEvent, 'id'>), skips: (d as { skips?: string[] }).skips ?? [], id: r.id, ...audit(r) });
+        break;
+      case 'wedding':
+        if (r.id === WEDDING_ID) h.wedding = { ...(d as Omit<WeddingDetails, 'id'>), id: WEDDING_ID, ...audit(r) };
+        break;
+      case 'vendor':
+        h.vendors.push({ ...(d as Omit<Vendor, 'id'>), id: r.id, ...audit(r) });
+        break;
+      case 'guest':
+        h.guests.push({ ...(d as Omit<Guest, 'id'>), id: r.id, ...audit(r) });
+        break;
+      case 'budget':
+        h.budget.push({ ...(d as Omit<BudgetItem, 'id'>), id: r.id, ...audit(r) });
         break;
       case 'pins': {
         const owner = r.id.replace(/^pins-/, '');

@@ -10,7 +10,7 @@ import { routes } from './routes.ts';
  * their label. There is no search history and no network call.
  */
 
-export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event';
+export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'vendor' | 'guest' | 'budget';
 
 export interface SearchDoc {
   id: string;
@@ -148,6 +148,18 @@ export function buildIndex(h: Household, today: DateStr): SearchDoc[] {
       aliases: ['event', 'calendar', 'appointment'], text: `${e.location} ${e.notes}`,
       value: e.location || undefined, fieldKind: e.location ? 'address' : undefined,
     });
+  }
+  for (const v of h.vendors) {
+    add({
+      id: v.id, kind: 'vendor', title: v.name, context: `${v.category} · Wedding vendor · ${v.status === 'booked' ? 'Booked' : 'Considering'}`, route: routes.weddingTab('vendors'),
+      aliases: ['vendor', 'wedding', v.category.toLowerCase()], text: `${v.contact} ${v.email} ${v.notes}`, value: v.phone || undefined, fieldKind: v.phone ? 'phone' : undefined,
+    });
+  }
+  for (const g of h.guests) {
+    add({ id: g.id, kind: 'guest', title: g.name, context: `Wedding guest · ${g.rsvp === 'yes' ? 'Coming' : g.rsvp === 'no' ? 'Not coming' : 'No answer yet'}${g.table ? ` · Table ${g.table}` : ''}`, route: routes.weddingTab('guests'), aliases: ['guest', 'wedding', 'rsvp'], text: `${g.meal} ${g.notes}` });
+  }
+  for (const b of h.budget) {
+    add({ id: b.id, kind: 'budget', title: b.title, context: `Wedding budget${b.category ? ` · ${b.category}` : ''}`, route: routes.weddingTab('budget'), aliases: ['budget', 'wedding', 'cost'], text: `${b.category} ${b.notes}` });
   }
   for (const t of h.tasks) {
     const plan = h.plans.find((p) => p.id === t.planId);

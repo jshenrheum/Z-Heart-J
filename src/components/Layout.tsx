@@ -15,6 +15,7 @@ import { clearAppCaches } from '../lib/pwa.ts';
 const NAV: Array<{ to: string; label: string; icon: IconName; match: (p: string) => boolean }> = [
   { to: routes.home, label: 'Home', icon: 'home', match: (p) => p === '/' || p === '/search' },
   { to: routes.calendar, label: 'Calendar', icon: 'calendar', match: (p) => p.startsWith('/calendar') },
+  { to: routes.wedding, label: 'Wedding', icon: 'heart', match: (p) => p.startsWith('/wedding') },
   { to: routes.info, label: 'Our Info', icon: 'info', match: (p) => p.startsWith('/info') },
   { to: routes.lists, label: 'Lists', icon: 'list', match: (p) => p.startsWith('/lists') },
   { to: routes.plans, label: 'Plans', icon: 'plan', match: (p) => p.startsWith('/plans') },
@@ -247,6 +248,14 @@ function AddMenu() {
     choices = [task, { label: 'New plan', icon: 'calendar', run: () => forms.open({ kind: 'plan' }) }];
   } else if (path.startsWith('/calendar')) {
     choices = [event, task];
+  } else if (path.startsWith('/wedding')) {
+    const plan = state.plans.find((p) => p.template === 'wedding' && p.status === 'active');
+    choices = [
+      { label: 'Add guest', icon: 'user', run: () => forms.open({ kind: 'guest' }) },
+      { label: 'Add vendor', icon: 'building', run: () => forms.open({ kind: 'vendor' }) },
+      { label: 'Add budget line', icon: 'list', run: () => forms.open({ kind: 'budget' }) },
+      { ...task, label: 'Add to the checklist', run: () => forms.open({ kind: 'task', prefill: plan ? { planId: plan.id } : {} }) },
+    ];
   } else if (path.startsWith('/settings')) {
     return null;
   } else {

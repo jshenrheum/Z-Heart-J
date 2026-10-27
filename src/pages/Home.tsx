@@ -13,6 +13,7 @@ import { InlineSearch } from '../components/Search.tsx';
 import { TaskRow } from '../components/Tasks.tsx';
 import { CardLink, Section } from '../components/ui.tsx';
 import { CalRow } from './Calendar.tsx';
+import { countdown } from '../lib/wedding.ts';
 
 export function HomePage() {
   const { state, me, today } = useStore();
@@ -51,6 +52,17 @@ export function HomePage() {
             </div>
           )}
         </Section>
+
+        {state.wedding?.date && (() => {
+          const c = countdown(state.wedding.date, today);
+          return (
+            <Link to={routes.wedding} className="wed-home" aria-label={`Wedding: ${c.label} ${c.sub}`}>
+              <span className="wed-home-count">{c.label}</span>
+              <span className="wed-home-sub">{c.sub}{state.wedding.venue ? ` · ${state.wedding.venue.split('\n')[0]}` : ''}</span>
+              <Icon name="chevron" size={18} className="card-chev" />
+            </Link>
+          );
+        })()}
 
         <Section title="This week" id="week" action={<Link to={routes.calendar} className="inline-link">Calendar</Link>}>
           {week.length > 0 ? (

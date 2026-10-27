@@ -1,5 +1,5 @@
 import { HOUSEHOLD_TZ, todayIn } from '../lib/dates.ts';
-import { canonical, CREATABLE, DELETABLE, InvalidData, newRowId, rowTitle, TRASH_DAYS, validateData, type Change, type Kind, type Row, type TrashEntry } from '../lib/records.ts';
+import { canonical, CREATABLE, DELETABLE, InvalidData, newRowId, rowTitle, TRASH_DAYS, validateData, WEDDING_ID, type Change, type Kind, type Row, type TrashEntry } from '../lib/records.ts';
 import { completeTask, reopenTask } from '../lib/tasks.ts';
 import type { MemberId, Task } from '../data/types.ts';
 import { ConflictError, SaveError, type Backend } from '../data/backend.ts';
@@ -46,6 +46,7 @@ export function createDemoBackend(): DemoBackend {
       await pause();
       if (!CREATABLE.includes(kind)) throw new SaveError('That can’t be created here.', 400);
       const clean = validate(kind, data);
+      if (kind === 'wedding' && id !== WEDDING_ID) throw new SaveError('There is one wedding record, and its id is “wedding”.', 400);
       const prev = store.get(id);
       if (prev) {
         if (!prev.deletedAt && canonical(prev.row.data) === canonical(clean)) return change([prev.row]);

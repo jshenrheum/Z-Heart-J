@@ -1,7 +1,7 @@
 import type { MemberId, Task } from '../src/data/types.ts';
 import { HOUSEHOLD_TZ, todayIn } from '../src/lib/dates.ts';
 import {
-  canonical, CREATABLE, CREDENTIAL_SLOT, DELETABLE, ID_RE, InvalidData, newRowId, PROTECTED_MAX, rowTitle, toHousehold, TRASH_DAYS, validateData,
+  canonical, CREATABLE, CREDENTIAL_SLOT, DELETABLE, ID_RE, InvalidData, newRowId, PROTECTED_MAX, rowTitle, toHousehold, TRASH_DAYS, validateData, WEDDING_ID,
   type Change, type Kind, type Row, type TrashEntry,
 } from '../src/lib/records.ts';
 import { completeTask } from '../src/lib/tasks.ts';
@@ -175,6 +175,7 @@ async function create(ctx: Ctx): Promise<Response> {
   if (!CREATABLE.includes(kind)) throw new ApiError(400, 'invalid', 'That kind of record can’t be created here.', { field: 'kind' });
   if (typeof id !== 'string' || !ID_RE.test(id)) throw new ApiError(400, 'invalid', 'Not a valid id.', { field: 'id' });
   const data = validate(kind, body.data);
+  if (kind === 'wedding' && id !== WEDDING_ID) throw new ApiError(400, 'invalid', 'There is one wedding record, and its id is “wedding”.', { field: 'id' });
 
   let parent: string | undefined;
   if (kind === 'item') {

@@ -54,7 +54,7 @@ describe('migration 0002 keeps every existing row and encrypted value exactly', 
     const before = await snap();
     assert.equal(before.protectedValues.length, 2);
 
-    assert.deepEqual(await applyMigrations(w.db), ['0002_events.sql']);
+    assert.deepEqual(await applyMigrations(w.db, '0002_events.sql'), ['0002_events.sql']);
     assert.deepEqual(await snap(), before, 'every row identical, protected values included');
 
     // Still decrypts (same ciphertext, same place), and the schema still behaves.

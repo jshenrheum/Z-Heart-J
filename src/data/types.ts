@@ -179,6 +179,66 @@ export interface EventRepeat {
 
 export type PinTarget = { kind: 'profile' | 'record' | 'list' | 'plan' | 'contact'; id: string };
 
+// ------------------------------------------------------------------ wedding
+
+/** The one wedding record (id "wedding"): the date and the day's details. */
+export interface WeddingDetails extends Audit {
+  id: 'wedding';
+  date?: DateStr;
+  /** Ceremony time, "HH:MM". */
+  time?: string;
+  venue: string;
+  address: string;
+  /** The overall budget, in dollars. */
+  budget?: number;
+  /** The day's schedule, one moment per line ("4:00 PM Ceremony"). */
+  schedule: string;
+  notes: string;
+}
+
+export type VendorStatus = 'considering' | 'booked';
+export type DepositStatus = 'none' | 'due' | 'paid';
+
+export interface Vendor extends Audit {
+  id: string;
+  name: string;
+  category: string;
+  /** The person to ask for. */
+  contact: string;
+  phone: string;
+  email: string;
+  website: string;
+  status: VendorStatus;
+  deposit: DepositStatus;
+  depositDue?: DateStr;
+  notes: string;
+}
+
+export type Rsvp = 'pending' | 'yes' | 'no';
+
+export interface Guest extends Audit {
+  id: string;
+  name: string;
+  /** Whose side they're from. */
+  side: Assignee;
+  /** People in the party, the guest included. */
+  party: number;
+  rsvp: Rsvp;
+  table: string;
+  meal: string;
+  notes: string;
+}
+
+/** A line of the wedding budget, in dollars. */
+export interface BudgetItem extends Audit {
+  id: string;
+  title: string;
+  category: string;
+  planned: number;
+  paid: number;
+  notes: string;
+}
+
 export interface Household {
   profiles: Profile[];
   locations: WorkLocation[];
@@ -189,6 +249,10 @@ export interface Household {
   plans: Plan[];
   tasks: Task[];
   events: CalendarEvent[];
+  wedding?: WeddingDetails;
+  vendors: Vendor[];
+  guests: Guest[];
+  budget: BudgetItem[];
   /** Each member's own Home shortcuts. The signed-in app only receives its own. */
   pins: Record<MemberId, PinTarget[]>;
 }

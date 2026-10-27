@@ -152,7 +152,7 @@ img, svg { display: block; max-width: 100%; }
 
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding: 4px 8px calc(var(--safe-bottom) + 4px);
   background: rgba(8, 9, 10, 0.82);
   backdrop-filter: saturate(160%) blur(20px);
@@ -595,6 +595,61 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .trash-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
 .trash-entry .card-main { flex: 1 1 220px; }
 .state-panel { display: grid; justify-items: start; gap: 12px; max-width: 34rem; padding: 28px 0; }
+
+/* ------------------------------------------------------------------ wedding */
+.wed-hero {
+  position: relative; display: grid; gap: 6px; padding: 26px 22px 22px; overflow: hidden;
+  background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.16), transparent 60%), var(--surface);
+  border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.wed-hero-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--heart); }
+.wed-hero-count { font-size: 3rem; line-height: 1; font-weight: 560; letter-spacing: -0.03em; color: var(--text); font-variant-numeric: tabular-nums; }
+.wed-hero-sub { color: var(--text-2); }
+.wed-hero-when { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 0.9375rem; }
+.wed-hero .btn { justify-self: start; margin-top: 10px; }
+.wed-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.wed-stat { display: grid; gap: 2px; padding: 12px 12px 10px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm); text-decoration: none; color: inherit; min-width: 0; transition: border-color var(--t), background var(--t); }
+.wed-stat:hover { border-color: var(--line); background: var(--surface-2); }
+.wed-stat-n.is-long { font-size: 1.0625rem; padding-top: 4px; }
+.wed-stat-n { font-size: 1.375rem; line-height: 1.1; font-weight: 560; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.wed-stat-l { font-size: 0.75rem; line-height: 1.3; color: var(--muted); }
+.wed-rows { list-style: none; display: grid; gap: 8px; }
+.wed-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm); box-shadow: var(--shadow); }
+.wed-row-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.wed-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.wed-row-name { min-height: 28px; padding: 0; text-align: left; font: inherit; font-weight: 500; color: var(--text); background: transparent; border: 0; cursor: pointer; border-radius: 6px; }
+.wed-row-name:hover { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.wed-row-sub { font-size: 0.8125rem; color: var(--muted); }
+.wed-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wed-row-actions { display: flex; flex: none; gap: 2px; }
+.wed-amount { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.wed-amount-paid { font-size: 0.8125rem; color: var(--muted); }
+.rsvp { display: inline-flex; flex: none; padding: 2px; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 999px; }
+.rsvp button { min-width: 44px; min-height: 36px; padding: 0 10px; font: inherit; font-size: 0.8125rem; font-weight: 500; color: var(--muted); background: transparent; border: 0; border-radius: 999px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: color var(--t), background var(--t); }
+.rsvp button:hover { color: var(--text); }
+.rsvp button[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); }
+.rsvp button[aria-pressed="true"].rsvp-no { color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line); }
+.wed-bar { position: relative; height: 8px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
+.wed-bar > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.wed-bar-planned { background: var(--faint); }
+.wed-bar-paid { background: var(--accent); }
+.wed-totals { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 0.875rem; color: var(--text-2); }
+.danger-text { color: var(--danger); }
+.pre { white-space: pre-line; }
+.wed-totals strong { color: var(--text); font-weight: 560; font-variant-numeric: tabular-nums; }
+.wed-schedule { list-style: none; display: grid; gap: 0; }
+.wed-schedule li { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); }
+.wed-schedule li:first-child { border-top: 0; }
+.wed-schedule time, .wed-schedule .wed-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 500; }
+.wed-home { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 16px 18px; text-decoration: none; color: inherit; background: radial-gradient(120% 160% at 0% 0%, rgba(240, 163, 179, 0.14), transparent 55%), var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); transition: border-color var(--t); }
+.wed-home:hover { border-color: var(--line); }
+.wed-home-count { font-size: 1.5rem; line-height: 1.1; font-weight: 560; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.wed-home-sub { grid-row: 2; font-size: 0.875rem; color: var(--muted); }
+.wed-home .card-chev { grid-row: 1 / span 2; color: var(--faint); }
+@media (max-width: 420px) {
+  .nav-item { padding: 6px 0; font-size: 0.625rem; letter-spacing: 0; }
+  .wed-hero-count { font-size: 2.5rem; }
+}
 
 /* ------------------------------------------------------------------ opening (Intro.tsx)
    The mark fades in out of a soft blur, the swash draws, the heart beats once,
