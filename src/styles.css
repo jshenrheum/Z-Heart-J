@@ -147,7 +147,7 @@ img, svg { display: block; max-width: 100%; }
 
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   padding: 4px 8px calc(var(--safe-bottom) + 4px);
   background: rgba(8, 9, 10, 0.82);
   backdrop-filter: saturate(160%) blur(20px);
@@ -187,7 +187,6 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
   main { grid-column: 2; padding: 36px 36px 64px; }
   .page { max-width: 980px; }
   .home-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px 32px; }
-  .home-grid > :nth-child(3) { grid-column: 1 / -1; }
 }
 
 /* ------------------------------------------------------------------ banners */
@@ -442,6 +441,55 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .checked summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; font-size: 0.875rem; color: var(--muted); }
 .checked summary:hover { color: var(--text); }
 .checked[open] > * + * { margin-top: 10px; }
+
+/* ------------------------------------------------------------------ calendar */
+.whose-jeffrey { --whose: var(--accent); }
+.whose-zul { --whose: var(--heart); }
+.whose-both { --whose: var(--text); }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--whose); }
+.cal-filters { display: grid; gap: 8px; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.75rem; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.cal { padding: 10px 10px 12px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 6px 8px; }
+.cal-title { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.02em; }
+.cal-nav { display: flex; align-items: center; gap: 2px; }
+.cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-week span { padding: 4px 0 6px; text-align: center; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; color: var(--muted); }
+.cal-grid { gap: 2px; }
+.cal-day {
+  display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 48px; padding: 4px 0;
+  background: transparent; border: 1px solid transparent; border-radius: 10px; color: var(--text); cursor: pointer;
+  font-variant-numeric: tabular-nums; transition: background var(--t), border-color var(--t);
+}
+.cal-day:hover { background: var(--surface-2); }
+.cal-num { display: grid; place-items: center; width: 28px; height: 24px; border-radius: 999px; font-size: 0.875rem; font-weight: 500; line-height: 1; }
+.cal-day.is-other .cal-num { color: var(--muted); }
+.cal-day.is-today .cal-num { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+.cal-day.is-on { background: var(--surface-3); border-color: var(--line); }
+.cal-dots { display: flex; gap: 3px; height: 6px; }
+
+.cal-list { list-style: none; padding: 2px 6px; }
+.cal-row + .cal-row { border-top: 1px solid var(--hairline); }
+.cal-link {
+  display: grid; grid-template-columns: 64px 3px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 56px; padding: 8px 6px; text-decoration: none; color: inherit; border-radius: 8px; transition: background var(--t);
+}
+.cal-link:hover { background: var(--surface-2); }
+.cal-link:hover .card-chev { color: var(--muted); }
+.cal-time { display: grid; font-size: 0.8125rem; font-weight: 500; color: var(--text-2); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.cal-time-day { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.cal-bar { align-self: stretch; min-height: 32px; border-radius: 3px; background: var(--whose); }
+.cal-main { display: grid; gap: 1px; min-width: 0; }
+.cal-item-title { font-weight: 500; letter-spacing: -0.01em; }
+.cal-sub { font-size: 0.8125rem; color: var(--muted); }
+.cal-agenda { padding: 4px 6px 6px; }
+.cal-agenda > div + div { border-top: 1px solid var(--hairline); }
+.cal-day-head { margin: 0; padding: 8px 6px 0; }
+.cal-day-link { min-height: 36px; padding: 0; background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
+.cal-day-link:hover { color: var(--text); }
+.cal-agenda .cal-list { padding: 0; }
 
 /* ------------------------------------------------------------------ settings */
 .segmented { display: inline-flex; padding: 3px; gap: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; margin-top: 12px; }

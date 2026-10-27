@@ -1,5 +1,5 @@
 import {
-  MEMBER_IDS, type Contact, type Credential, type FieldKind, type HomeField, type HomeRecord, type HomeTemplate, type Household, type ListItem,
+  MEMBER_IDS, type CalendarEvent, type Contact, type Credential, type FieldKind, type HomeField, type HomeRecord, type HomeTemplate, type Household, type ListItem,
   type MemberId, type PinTarget, type Plan, type Profile, type SharedList, type Task, type WorkLocation,
 } from '../data/types.ts';
 import { isDateStr } from './dates.ts';
@@ -17,12 +17,12 @@ import { safeUrl } from './summary.ts';
  * protected field can never carry a value inside ordinary data.
  */
 
-export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'pins';
-export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'pins'];
+export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'pins';
+export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'pins'];
 /** Kinds a client may create with the generic create call. */
-export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task'];
+export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event'];
 /** Kinds that can be moved to the trash. */
-export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task'];
+export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event'];
 
 export interface Row {
   id: string;
@@ -143,6 +143,14 @@ const id: Rule = (v, f) => {
   if (typeof v !== 'string' || !ID_RE.test(v)) throw new InvalidData(f, 'Not a valid id');
   return v;
 };
+const requiredDate: Rule = (v, f) => {
+  if (!isDateStr(v)) throw new InvalidData(f, v ? 'Enter a real date' : 'Required');
+  return v;
+};
+const time: Rule = (v, f) => {
+  if (typeof v !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw new InvalidData(f, 'Enter a time like 19:30');
+  return v;
+};
 const optional =
   (rule: Rule): Rule =>
   (v, f) =>
@@ -245,6 +253,22 @@ const SPECS: Record<Kind, Rule> = {
     seriesId: id, planId: optional(id), title: text(120, { required: true }), assignee: oneOf([...MEMBER_IDS, 'both'] as const), due: date,
     status: oneOf(['open', 'done'] as const), completedOn: date, recurrence: optional(recurrence), createdFrom: optional(id), notes: text(1000, { multiline: true }),
   }),
+  event: (v, f) => {
+    const e = object({
+      title: text(120, { required: true }), whose: oneOf([...MEMBER_IDS, 'both'] as const), date: requiredDate, endDate: date,
+      startTime: optional(time), endTime: optional(time), location: text(200, { multiline: true }), notes: text(1000, { multiline: true }),
+      repeat: optional(object({ every: int(1, 99), unit: oneOf(['day', 'week', 'month', 'year'] as const), until: date })),
+      skips: array(requiredDate, 400),
+    })(v, f) as { date: string; endDate?: string; startTime?: string; endTime?: string; repeat?: { until?: string }; skips: string[] };
+    if (e.endTime && !e.startTime) throw new InvalidData('endTime', 'Add a start time first');
+    if (e.startTime && e.endTime && e.endTime <= e.startTime) throw new InvalidData('endTime', 'Ends before it starts');
+    if (e.endDate && e.startTime) throw new InvalidData('endDate', 'Only all-day events span several days');
+    if (e.endDate && e.endDate < e.date) throw new InvalidData('endDate', 'Ends before it starts');
+    if (e.endDate === e.date) delete e.endDate;
+    if (e.repeat?.until && e.repeat.until < e.date) throw new InvalidData('repeat.until', 'The repeat ends before the first day');
+    e.skips = [...new Set(e.skips)].sort();
+    return e;
+  },
   pins: object({
     targets: (v, f) => {
       const list = array(object({ kind: oneOf(['profile', 'record', 'list', 'plan', 'contact'] as const), id }), MAX_PINS)(v, f) as PinTarget[];
@@ -305,6 +329,7 @@ export function rowTitle(row: Row): { title: string; context: string } {
     case 'item': return { title: d.name ?? 'Item', context: 'List item' };
     case 'plan': return { title: d.title ?? 'Plan', context: 'Plan' };
     case 'task': return { title: d.title ?? 'Task', context: 'Task' };
+    case 'event': return { title: d.title ?? 'Event', context: 'Calendar event' };
     default: return { title: row.id, context: row.kind };
   }
 }
@@ -318,7 +343,7 @@ const audit = (r: Row) => ({ updatedBy: r.updatedBy, updatedAt: r.updatedAt, ver
  * change still in flight. Only rows of the known kinds are used.
  */
 export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = new Set()): Household {
-  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], pins: { jeffrey: [], zul: [] } };
+  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], pins: { jeffrey: [], zul: [] } };
   const items = new Map<string, ListItem[]>();
   // Creation order, so cards keep their places as they're edited.
   const ordered = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
@@ -359,6 +384,9 @@ export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = n
         break;
       case 'task':
         h.tasks.push({ ...(d as Omit<Task, 'id'>), id: r.id, ...audit(r) });
+        break;
+      case 'event':
+        h.events.push({ ...(d as Omit<CalendarEvent, 'id'>), skips: (d as { skips?: string[] }).skips ?? [], id: r.id, ...audit(r) });
         break;
       case 'pins': {
         const owner = r.id.replace(/^pins-/, '');

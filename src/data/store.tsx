@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  MEMBERS, type Assignee, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type WorkLocation, type Contact, type Credential,
+  MEMBERS, type Assignee, type EventRepeat, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type WorkLocation, type Contact, type Credential,
 } from './types.ts';
 import { ConflictError, SaveError, SessionError, type Backend } from './backend.ts';
 import { displayDate, todayIn, type DateStr } from '../lib/dates.ts';
@@ -52,6 +52,18 @@ export interface PlanInput {
   template: Plan['template'];
   status?: Plan['status'];
 }
+export interface EventInput {
+  title: string;
+  whose: Assignee;
+  date: DateStr;
+  endDate?: DateStr;
+  startTime?: string;
+  endTime?: string;
+  location: string;
+  notes: string;
+  repeat?: EventRepeat;
+}
+
 export interface NewTask {
   title: string;
   assignee: Assignee;
@@ -80,6 +92,9 @@ export interface Actions {
   saveProfile: (id: MemberId, v: ProfileInput) => Promise<Outcome>;
   saveCredential: (id: string | null, owner: MemberId, v: CredentialInput) => Promise<Outcome<string>>;
   addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<Outcome<string>>;
+  saveEvent: (id: string | null, v: EventInput) => Promise<Outcome<string>>;
+  /** Removes one day of a repeating event (Undo puts it back). */
+  skipEventDay: (id: string, day: DateStr) => Promise<Outcome>;
   /** Moves a record (and a list's items or a plan's tasks) to the trash, with Undo. */
   trashRecord: (id: string, what: string) => Promise<Outcome>;
   restore: (ids: string[]) => Promise<Outcome>;
@@ -110,7 +125,7 @@ const Ctx = createContext<Store | null>(null);
 
 const POLL_MS = 15_000;
 const nowIso = () => new Date().toISOString();
-const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], pins: { jeffrey: [], zul: [] } };
+const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], pins: { jeffrey: [], zul: [] } };
 
 function index(rows: Row[]): Rows {
   const out: Rows = {};
@@ -495,6 +510,45 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         const fields = v.details.trim() ? [{ id: newRowId('f'), label: 'Details', kind: 'text', value: v.details.trim() }] : [];
         const id = newRowId('home');
         return create(`“${v.title.trim()}” wasn’t saved`, 'home', id, { template: v.template, title: v.title.trim(), fields, notes: v.notes.trim() }, { quiet: true, value: () => id });
+      },
+
+      async saveEvent(id, v) {
+        const existing = id ? row(id) : undefined;
+        const data: Record<string, unknown> = {
+          title: v.title.trim(), whose: v.whose, date: v.date, location: v.location.trim(), notes: v.notes.trim(),
+          // A changed first day or repeat makes earlier one-off removals meaningless; otherwise keep them.
+          skips: existing && existing.data.date === v.date && JSON.stringify(existing.data.repeat ?? null) === JSON.stringify(v.repeat ?? null) ? (existing.data.skips as string[]) ?? [] : [],
+        };
+        if (v.startTime) {
+          data.startTime = v.startTime;
+          if (v.endTime) data.endTime = v.endTime;
+        } else if (v.endDate) data.endDate = v.endDate;
+        if (v.repeat) data.repeat = v.repeat;
+        if (id) {
+          const r = await update(`“${data.title as string}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('ev');
+        return create(`“${data.title as string}” wasn’t saved`, 'event', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async skipEventDay(id, day) {
+        const ev = row(id);
+        if (!ev) return { ok: false, message: 'That event isn’t here any more.' };
+        const before = (ev.data.skips as string[] | undefined) ?? [];
+        const r = await update('that day wasn’t removed', id, { ...ev.data, skips: [...before, day] });
+        if (r.ok) {
+          toast(`Removed ${displayDate(day, todayIn())} only.`, {
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                const now = row(id);
+                if (now) void update('that day wasn’t put back', id, { ...now.data, skips: ((now.data.skips as string[]) ?? []).filter((d) => d !== day) });
+              },
+            },
+          });
+        }
+        return r;
       },
 
       async trashRecord(id, what) {

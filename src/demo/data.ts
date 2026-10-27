@@ -1,4 +1,4 @@
-import { addDays, type DateStr } from '../lib/dates.ts';
+import { addDays, addMonthsClamped, type DateStr } from '../lib/dates.ts';
 import type { Kind, Row } from '../lib/records.ts';
 import type { MemberId } from '../data/types.ts';
 
@@ -129,6 +129,15 @@ export function makeDemoRows(today: DateStr): Row[] {
     task('t6', 'jeffrey', { title: 'Test smoke alarms', assignee: 'jeffrey', due: addDays(today, -3), recurrence: { mode: 'after_completion', every: 6, unit: 'month' } }),
     task('t7', 'zul', { title: 'Renew parking permit (demo)', assignee: 'zul' }),
     task('t8', 'jeffrey', { title: 'Wipe down the router (demo)', assignee: 'jeffrey', status: 'done', completedOn: addDays(today, -9) }),
+
+    row('event', 'ev-dinner', 'zul', 1, {
+      title: 'Dinner with friends (demo)', whose: 'both', date: addDays(today, 2), startTime: '19:30', endTime: '21:30',
+      location: '500 Example Street, Demoville, ST 00000', notes: 'Demo: the reservation is under “J”.', skips: [],
+    }),
+    row('event', 'ev-dentist', 'zul', 2, { title: 'Dentist (demo)', whose: 'zul', date: addDays(today, 5), startTime: '10:00', endTime: '11:00', location: 'Demo Dental, 600 Sample Way', notes: '', skips: [] }),
+    row('event', 'ev-run', 'jeffrey', 9, { title: 'Morning run (demo)', whose: 'jeffrey', date: addDays(today, -13), startTime: '07:00', location: '', notes: '', repeat: { every: 1, unit: 'week' }, skips: [] }),
+    row('event', 'ev-away', 'jeffrey', 4, { title: 'Weekend away (demo)', whose: 'both', date: addDays(today, 12), endDate: addDays(today, 14), location: 'Demo Lake Cabin', notes: '', skips: [] }),
+    row('event', 'ev-anniversary', 'zul', 40, { title: 'Anniversary (demo)', whose: 'both', date: addMonthsClamped(addDays(today, 20), -12), location: '', notes: '', repeat: { every: 1, unit: 'year' }, skips: [] }),
 
     row('pins', 'pins-jeffrey', 'jeffrey', 1, { targets: [{ kind: 'profile', id: 'jeffrey' }, { kind: 'profile', id: 'zul' }, { kind: 'record', id: 'home-address' }, { kind: 'list', id: 'groceries' }] }),
     row('pins', 'pins-zul', 'zul', 1, { targets: [{ kind: 'profile', id: 'zul' }, { kind: 'profile', id: 'jeffrey' }, { kind: 'record', id: 'home-address' }, { kind: 'list', id: 'groceries' }] }),

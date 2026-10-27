@@ -150,6 +150,33 @@ export interface Task extends Audit {
   notes: string;
 }
 
+/** A calendar event. Times are wall-clock "HH:MM" in the household's time zone. */
+export interface CalendarEvent extends Audit {
+  id: string;
+  title: string;
+  /** Whose it is: one of you, or both. */
+  whose: Assignee;
+  /** The (first) day. */
+  date: DateStr;
+  /** All-day events only: the last day of an event spanning several days. */
+  endDate?: DateStr;
+  /** Absent for all-day events. */
+  startTime?: string;
+  endTime?: string;
+  location: string;
+  notes: string;
+  repeat?: EventRepeat;
+  /** Days of a repeating event that were removed one at a time. */
+  skips: DateStr[];
+}
+
+export interface EventRepeat {
+  every: number;
+  unit: 'day' | 'week' | 'month' | 'year';
+  /** Last day a repeat may fall on. */
+  until?: DateStr;
+}
+
 export type PinTarget = { kind: 'profile' | 'record' | 'list' | 'plan' | 'contact'; id: string };
 
 export interface Household {
@@ -161,6 +188,7 @@ export interface Household {
   lists: SharedList[];
   plans: Plan[];
   tasks: Task[];
+  events: CalendarEvent[];
   /** Each member's own Home shortcuts. The signed-in app only receives its own. */
   pins: Record<MemberId, PinTarget[]>;
 }

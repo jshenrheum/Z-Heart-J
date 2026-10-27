@@ -1,4 +1,5 @@
 import { HOME_TEMPLATE_LABEL, MEMBERS, MEMBER_IDS, type FieldKind, type Household, type MemberId } from '../data/types.ts';
+import { nextOccurrence, timeLabel } from './calendar.ts';
 import { displayDate, type DateStr } from './dates.ts';
 import { routes } from './routes.ts';
 
@@ -9,7 +10,7 @@ import { routes } from './routes.ts';
  * their label. There is no search history and no network call.
  */
 
-export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task';
+export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event';
 
 export interface SearchDoc {
   id: string;
@@ -137,6 +138,16 @@ export function buildIndex(h: Household, today: DateStr): SearchDoc[] {
 
   for (const p of h.plans) {
     add({ id: p.id, kind: 'plan', title: p.title, context: `Plan${p.target ? ` · target ${displayDate(p.target, today)}` : ''}`, route: routes.plan(p.id), pinKey: `plan:${p.id}`, aliases: ['plan', 'project', p.template], text: p.description });
+  }
+  for (const e of h.events) {
+    const when = e.repeat ? nextOccurrence(e, today) : e.date;
+    const whose = e.whose === 'both' ? 'Both' : MEMBERS[e.whose].name;
+    add({
+      id: e.id, kind: 'event', title: e.title, context: `Event · ${whose}${when ? ` · ${displayDate(when, today)}, ${timeLabel(e)}` : ''}`,
+      owner: e.whose === 'both' ? undefined : e.whose, route: routes.event(e.id, e.repeat ? when : undefined),
+      aliases: ['event', 'calendar', 'appointment'], text: `${e.location} ${e.notes}`,
+      value: e.location || undefined, fieldKind: e.location ? 'address' : undefined,
+    });
   }
   for (const t of h.tasks) {
     const plan = h.plans.find((p) => p.id === t.planId);

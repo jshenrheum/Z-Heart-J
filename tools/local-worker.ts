@@ -80,12 +80,13 @@ export async function bundleWorker(): Promise<string> {
 }
 
 /** Applies migrations/*.sql in order, recording them the way wrangler does (d1_migrations). */
-export async function applyMigrations(db: D1Database): Promise<string[]> {
+export async function applyMigrations(db: D1Database, upTo?: string): Promise<string[]> {
   await db.prepare('CREATE TABLE IF NOT EXISTS d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)').run();
   const done = new Set((await db.prepare('SELECT name FROM d1_migrations').all<{ name: string }>()).results.map((r) => r.name));
   const files = (await readdir(join(ROOT, 'migrations'))).filter((f) => f.endsWith('.sql')).sort();
   const applied: string[] = [];
   for (const f of files) {
+    if (upTo && f > upTo) break;
     if (done.has(f)) continue;
     const sql = (await readFile(join(ROOT, 'migrations', f), 'utf8')).replace(/--.*$/gm, '');
     const statements = sql.split(/;\s*(?:\n|$)/).map((s) => s.trim()).filter(Boolean);
@@ -114,6 +115,8 @@ export interface LocalOptions {
   issuer?: AccessIssuer;
   /** The origin the browser sees (used as the request URL's origin). */
   origin?: string;
+  /** Stop after this migration file (tests of later migrations start from it). */
+  migrateUpTo?: string;
 }
 
 export const LOCAL_MEMBERS = { jeffrey: 'jeffrey@local.test', zul: 'zul@local.test' } as const;
@@ -157,7 +160,7 @@ export async function startLocalWorker(opts: LocalOptions = {}): Promise<LocalWo
     },
   } as Parameters<typeof convertV4MiniflareOptions>[0]));
   const db = await mf.getD1Database('DB');
-  await applyMigrations(db);
+  await applyMigrations(db, opts.migrateUpTo);
   const origin = opts.origin ?? 'http://127.0.0.1:8788';
 
   return {

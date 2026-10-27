@@ -5,6 +5,7 @@ export const routes = {
   contacts: '/info/contacts',
   lists: '/lists',
   plans: '/plans',
+  calendar: '/calendar',
   settings: '/settings',
   trash: '/settings/trash',
   // The query text is passed through history.state and never written to the URL,
@@ -14,4 +15,6 @@ export const routes = {
   record: (id: string) => `/info/r/${id}`,
   list: (id: string) => `/lists/${id}`,
   plan: (id: string) => `/plans/p/${id}`,
+  /** `on` picks one day of a repeating event. */
+  event: (id: string, on?: string) => `/calendar/e/${id}${on ? `?on=${on}` : ''}`,
 };

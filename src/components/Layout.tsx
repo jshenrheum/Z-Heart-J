@@ -14,6 +14,7 @@ import { clearAppCaches } from '../lib/pwa.ts';
 
 const NAV: Array<{ to: string; label: string; icon: IconName; match: (p: string) => boolean }> = [
   { to: routes.home, label: 'Home', icon: 'home', match: (p) => p === '/' || p === '/search' },
+  { to: routes.calendar, label: 'Calendar', icon: 'calendar', match: (p) => p.startsWith('/calendar') },
   { to: routes.info, label: 'Our Info', icon: 'info', match: (p) => p.startsWith('/info') },
   { to: routes.lists, label: 'Lists', icon: 'list', match: (p) => p.startsWith('/lists') },
   { to: routes.plans, label: 'Plans', icon: 'plan', match: (p) => p.startsWith('/plans') },
@@ -228,6 +229,7 @@ function AddMenu() {
   const groceries = state.lists.find((l) => /grocer/i.test(l.title)) ?? state.lists[0];
   const task: Choice = { label: 'New task', icon: 'plan', run: () => forms.open({ kind: 'task' }) };
   const info: Choice = { label: 'Add information', icon: 'info', run: () => forms.open({ kind: 'info' }) };
+  const event: Choice = { label: 'New event', icon: 'calendar', run: () => forms.open({ kind: 'event' }) };
   const addItem = (listId: string): Choice => ({ label: 'Add an item', icon: 'plus', run: () => navigate(routes.list(listId), { state: { focusAdd: true } }) });
 
   let choices: Choice[];
@@ -243,10 +245,12 @@ function AddMenu() {
     choices = [...(id ? [addItem(id)] : []), { label: 'New list', icon: 'list', run: () => forms.open({ kind: 'list' }) }];
   } else if (path.startsWith('/plans')) {
     choices = [task, { label: 'New plan', icon: 'calendar', run: () => forms.open({ kind: 'plan' }) }];
+  } else if (path.startsWith('/calendar')) {
+    choices = [event, task];
   } else if (path.startsWith('/settings')) {
     return null;
   } else {
-    choices = [...(groceries ? [{ ...addItem(groceries.id), label: `Add to ${groceries.title}` }] : []), task, info];
+    choices = [...(groceries ? [{ ...addItem(groceries.id), label: `Add to ${groceries.title}` }] : []), event, task, info];
   }
 
   return (

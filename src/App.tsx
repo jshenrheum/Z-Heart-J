@@ -13,6 +13,7 @@ import { ListPage, ListsPage } from './pages/Lists.tsx';
 import { NotFound } from './pages/NotFound.tsx';
 import { PlanPage, PlansPage } from './pages/Plans.tsx';
 import { SearchPage } from './pages/Search.tsx';
+import { CalendarPage, EventPage } from './pages/Calendar.tsx';
 import { SettingsPage } from './pages/Settings.tsx';
 import { TrashPage } from './pages/Trash.tsx';
 
@@ -33,6 +34,10 @@ function Routes() {
   if (a === 'lists') {
     if (seg.length === 1) return <ListsPage />;
     if (b && seg.length === 2) return <ListPage id={b} />;
+  }
+  if (a === 'calendar') {
+    if (seg.length === 1) return <CalendarPage />;
+    if (b === 'e' && c && seg.length === 3) return <EventPage id={c} />;
   }
   if (a === 'plans') {
     if (seg.length === 1) return <PlansPage />;

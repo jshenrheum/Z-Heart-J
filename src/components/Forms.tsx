@@ -6,6 +6,8 @@ import { newRowId } from '../lib/records.ts';
 import { navigate } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
 import type { RecurrenceMode, RecurrenceUnit } from '../lib/recurrence.ts';
+import { todayIn } from '../lib/dates.ts';
+import type { EventRepeat } from '../data/types.ts';
 import { Icon } from './Icon.tsx';
 import { FormSheet, type FieldDef, type Values } from './FormSheet.tsx';
 
@@ -22,7 +24,8 @@ export type FormRequest =
   | { kind: 'credential'; owner: MemberId; id?: string }
   | { kind: 'list'; id?: string }
   | { kind: 'plan'; id?: string }
-  | { kind: 'item'; listId: string; itemId: string };
+  | { kind: 'item'; listId: string; itemId: string }
+  | { kind: 'event'; id?: string; date?: string };
 
 const FormsCtx = createContext<{ open: (r: FormRequest) => void } | null>(null);
 export const useForms = () => {
@@ -53,6 +56,7 @@ export function FormsProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'list' && <ListForm id={req.id} onClose={close} />}
       {req?.kind === 'plan' && <PlanForm id={req.id} onClose={close} />}
       {req?.kind === 'item' && <ItemForm listId={req.listId} itemId={req.itemId} onClose={close} />}
+      {req?.kind === 'event' && <EventForm id={req.id} date={req.date} onClose={close} />}
     </FormsCtx.Provider>
   );
 }
@@ -520,6 +524,66 @@ function ItemForm({ listId, itemId, onClose }: { listId: string; itemId: string;
         </button>
       }
       onSubmit={async (v) => done(await actions.editItem(listId, itemId, { name: v.name ?? '', qty: v.qty ?? '', note: v.note ?? '' }))}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ calendar event
+
+function EventForm({ id, date, onClose }: { id?: string; date?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.events.find((e) => e.id === id) : undefined;
+  const timed = (v: Values) => v.when !== 'allday';
+  const allDay = (v: Values) => v.when === 'allday';
+  const repeats = (v: Values) => !!v.repeat && v.repeat !== 'none';
+  const fields: FieldDef[] = [
+    { name: 'title', label: 'What', required: true, maxLength: 120, placeholder: 'e.g. Dinner with friends' },
+    { name: 'whose', label: 'Whose', type: 'select', required: true, options: [{ value: 'both', label: 'Both of us' }, ...MEMBER_IDS.map((m) => ({ value: m, label: MEMBERS[m].name }))] },
+    { name: 'date', label: 'Date', type: 'date', required: true },
+    { name: 'when', label: 'Time', type: 'select', required: true, options: [{ value: 'timed', label: 'At a set time' }, { value: 'allday', label: 'All day' }] },
+    { name: 'startTime', label: 'Starts', type: 'time', required: true, showIf: timed, validate: (v, all) => (all.when !== 'allday' && !v ? 'Add a start time, or choose All day' : undefined) },
+    { name: 'endTime', label: 'Ends', type: 'time', showIf: timed, validate: (v, all) => (v && all.startTime && v <= all.startTime ? 'Ends before it starts' : undefined) },
+    { name: 'endDate', label: 'Last day', type: 'date', showIf: allDay, hint: 'For something that spans several days, like a trip.', validate: (v, all) => (v && all.date && v < all.date ? 'Ends before it starts' : undefined) },
+    { name: 'location', label: 'Where', maxLength: 200, placeholder: 'Address or place' },
+    {
+      name: 'repeat', label: 'Repeats', type: 'select',
+      options: [{ value: 'none', label: 'Doesn’t repeat' }, { value: 'week', label: 'Every week' }, { value: 'month', label: 'Every month' }, { value: 'year', label: 'Every year' }, { value: 'day', label: 'Every day' }],
+      hint: existing?.repeat ? 'Changes here apply to every repeat. To change just one day, remove that day from the event’s page and add it again.' : undefined,
+    },
+    { name: 'every', label: 'How often', type: 'number', min: 1, max: 99, showIf: repeats, hint: '1 = every time, 2 = every other, and so on.' },
+    { name: 'until', label: 'Until', type: 'date', showIf: repeats, hint: 'Leave blank to keep repeating.', validate: (v, all) => (v && all.date && v < all.date ? 'Ends before the first day' : undefined) },
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000 },
+  ];
+  const initial: Values = existing
+    ? {
+        title: existing.title, whose: existing.whose, date: existing.date, when: existing.startTime ? 'timed' : 'allday', startTime: existing.startTime ?? '', endTime: existing.endTime ?? '',
+        endDate: existing.endDate ?? '', location: existing.location, repeat: existing.repeat?.unit ?? 'none', every: String(existing.repeat?.every ?? 1), until: existing.repeat?.until ?? '', notes: existing.notes,
+      }
+    : { title: '', whose: 'both', date: date ?? todayIn(), when: 'timed', startTime: '', endTime: '', endDate: '', location: '', repeat: 'none', every: '1', until: '', notes: '' };
+  return (
+    <FormSheet
+      title={existing ? 'Edit event' : 'New event'}
+      fields={fields}
+      initial={initial}
+      submitLabel={existing ? 'Save changes' : 'Add event'}
+      note={SHARED}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={routes.calendar} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const isTimed = v.when !== 'allday';
+        const repeat: EventRepeat | undefined =
+          v.repeat && v.repeat !== 'none' ? { every: Number(v.every || '1'), unit: v.repeat as EventRepeat['unit'], ...(v.until ? { until: v.until } : {}) } : undefined;
+        const r = await actions.saveEvent(existing?.id ?? null, {
+          title: v.title ?? '', whose: (v.whose as Assignee) || 'both', date: v.date ?? '', location: v.location ?? '', notes: v.notes ?? '', repeat,
+          ...(isTimed ? { startTime: v.startTime || undefined, endTime: v.endTime || undefined } : { endDate: v.endDate || undefined }),
+        });
+        if (r.ok) {
+          toast(existing ? 'Event saved.' : 'Event added.');
+          if (!existing) navigate(routes.event(r.value));
+        }
+        return done(r);
+      }}
     />
   );
 }

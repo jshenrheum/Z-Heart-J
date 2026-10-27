@@ -365,6 +365,59 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- calendar (today is Sun, Oct 25 2026 here)
+  {
+    const { ctx, page } = await newPage();
+    const agenda = () => page.locator('#cal-next-h').locator('..').locator('..').innerText();
+    await open(page, '/calendar');
+    await check('calendar: month, today and the agenda with events, tasks and their times', async () => {
+      ok((await page.locator('#cal-month').innerText()) === 'October 2026', 'month title');
+      ok((await page.locator('#cal-day-h').innerText()).toLowerCase().includes('today · sun, oct 25'), await page.locator('#cal-day-h').innerText());
+      const a = await agenda();
+      ok(a.includes('Dinner with friends (demo)') && a.includes('7:30 PM') && a.includes('Get two quotes'), a.slice(0, 300));
+      eq(await page.locator('.cal-day[aria-current="date"]').count(), 1, 'today marked once');
+    });
+    await check('calendar: Zul’s view shows hers and shared, not Jeffrey’s own', async () => {
+      await page.getByRole('link', { name: 'Zul’s' }).click();
+      await page.waitForTimeout(200);
+      const a = await agenda();
+      ok(a.includes('Dentist (demo)') && a.includes('Dinner with friends (demo)'), 'hers and both');
+      ok(!a.includes('Morning run (demo)'), 'not Jeffrey’s run');
+      await page.getByRole('link', { name: 'Everyone' }).click();
+    });
+    await check('calendar: a new timed event saves, opens, and sits on its day', async () => {
+      await page.getByRole('button', { name: 'New event' }).click();
+      const d = page.getByRole('dialog');
+      await d.getByLabel(/^What/).fill('Vet visit');
+      await d.getByLabel(/^Whose/).selectOption('zul');
+      await d.getByLabel(/^Date/).fill('2026-11-03');
+      await d.getByLabel(/^Starts/).fill('09:00');
+      await d.getByLabel(/^Ends/).fill('08:00');
+      await d.getByRole('button', { name: 'Add event' }).click();
+      ok((await d.locator('.field-error').first().innerText()).includes('Ends before it starts'), 'end before start refused');
+      await d.getByLabel(/^Ends/).fill('09:30');
+      await d.getByRole('button', { name: 'Add event' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok((await page.locator('main').innerText()).includes('Tue, Nov 3 · 9:00 – 9:30 AM'), await page.locator('main').innerText());
+      await page.locator('main .back-link').click(); // back to the event's own day
+      await page.waitForTimeout(200);
+      ok((await page.locator('#cal-day-h').locator('..').locator('..').innerText()).includes('Vet visit'), 'on Nov 3');
+    });
+    await check('calendar: one day of a repeat can be removed, and Undo puts it back', async () => {
+      await open(page, '/calendar/e/ev-run?on=2026-10-26');
+      await page.getByRole('button', { name: /Remove Mon, Oct 26 only/ }).click();
+      await page.waitForTimeout(400);
+      const day = () => page.locator('#cal-day-h').locator('..').locator('..').innerText();
+      ok((await page.locator('#cal-day-h').innerText()).toLowerCase().includes('oct 26'), 'back on that day');
+      ok(!(await day()).includes('Morning run'), 'removed from Oct 26');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await page.waitForTimeout(400);
+      ok((await day()).includes('Morning run'), 'back after Undo');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
   // ---------------------------------------------------------------- structural accessibility audit
   {
     const { ctx, page } = await newPage();
@@ -378,7 +431,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const imgNoAlt = [...document.querySelectorAll('img:not([alt])')].length;
       return { dupes, unnamed, h1, imgNoAlt };
     });
-    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/search', '/no-such-page']) {
+    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/calendar', '/calendar/e/ev-dinner', '/calendar/e/ev-run', '/search', '/no-such-page']) {
       await check(`a11y structure ${route}: one h1, unique ids, every control named`, async () => {
         await open(page, route);
         const r = await audit();

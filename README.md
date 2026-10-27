@@ -28,18 +28,19 @@ The local preview keeps everything (database and a throwaway encryption key) in 
 | Command | What it checks |
 |---|---|
 | `npm run typecheck` | Strict TypeScript: the app (browser types only), tests and scripts (Node types), the Worker (Workers types) |
-| `npm test` | 41 unit tests: dates and time zone, recurrence, completion and undo, work-summary allowlist, search ranking and protected-value exclusion, record validation |
-| `npm run test:worker` | 42 tests of the real Worker in workerd with a real local D1: sign-in (forged, expired, wrong audience, not a member), setup errors, headers, validation, 409 conflicts, trash and purge, task completion races, encryption, export, household scoping |
+| `npm test` | 50 unit tests: dates and time zone, recurrence, completion and undo, work-summary allowlist, search ranking and protected-value exclusion, record validation, calendar repeats and agenda |
+| `npm run test:worker` | 46 tests of the real Worker in workerd with a real local D1: sign-in (forged, expired, wrong audience, not a member), setup errors, headers, validation, 409 conflicts, trash and purge, task completion races, encryption, export, household scoping, calendar events, and migration 0002 on a filled database |
 | `npm run contrast` | WCAG contrast for every text and control colour pairing (44) |
-| `npm run e2e` | 65 browser checks on the demo build (serve it with `npm run preview:demo` first) |
-| `npm run e2e:live` | 19 browser checks on the production build behind the local Worker, with two phones (Jeffrey and Zul) |
+| `npm run e2e` | 73 browser checks on the demo build (serve it with `npm run preview:demo` first) |
+| `npm run e2e:live` | 20 browser checks on the production build behind the local Worker, with two phones (Jeffrey and Zul) |
 | `npm run build` | Also refuses a production build containing any demo content or demo control, inline script or style, or source maps (`scripts/check-dist.mjs`) |
 
 If your installed Chromium differs from the one Playwright expects, set `CHROMIUM_PATH` for the two browser suites.
 
 ## What it does
 
-- **Home** — search, your pinned shortcuts, shared lists with one-tap add, what's coming up.
+- **Home** — search, your pinned shortcuts, this week on the calendar, shared lists with one-tap add, tasks coming up.
+- **Calendar** — one shared calendar. Each event is Jeffrey's, Zul's or both (champagne, rose, white), with a filter for Everyone, Mine or the other's. A month grid with dots and an agenda. Events have times or are all day (and can span days), a place with Directions, notes, and repeats (daily, weekly, monthly, yearly; month ends don't drift); one day of a repeat can be removed on its own. Dated tasks, plan target dates and credential expiry dates appear on it automatically.
 - **Our Info** — each person's work details and locations (address, phones, fax, scheduling line), credentials, home cards (address, utilities, internet, maintenance, pet, vehicle, anything else), and contacts.
   - **Copy work summary** is built from an explicit allowlist of ordinary fields. A credential number can't be in it.
   - Fax numbers are copy-only, never a `tel:` link. Links only open as `http(s)`.

@@ -201,6 +201,23 @@ function startPreview() {
     ok(!text.includes(SECRET), 'export never has the value');
   });
 
+  // ---------------------------------------------------------------- shared calendar
+  await check('calendar: an event Jeffrey adds for both of you is on Zul’s calendar, in her view too', async () => {
+    const ny = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+    const day = ny.format(new Date(Date.now() + 10 * 86_400_000));
+    await go(J.page, '/calendar');
+    await J.page.getByRole('button', { name: 'New event' }).click();
+    await dialog(J.page).getByLabel(/^What/).fill('Dinner reservation');
+    await dialog(J.page).getByLabel(/^Date/).fill(day);
+    await dialog(J.page).getByLabel(/^Starts/).fill('19:00');
+    await dialog(J.page).getByLabel(/^Where/).fill('1 Placeholder Lane');
+    await submit(J.page, 'Add event');
+    ok((await J.page.locator('main').innerText()).includes('7:00 PM'), 'event page');
+    await go(Z.page, `/calendar?who=zul&m=${day.slice(0, 7)}&d=${day}`);
+    const zDay = await Z.page.locator('#cal-day-h').locator('..').locator('..').innerText();
+    ok(zDay.includes('Dinner reservation') && zDay.includes('Both'), zDay);
+  });
+
   // ---------------------------------------------------------------- tasks, trash
   await check('tasks: completing a recurring task makes one next occurrence; Undo takes it back', async () => {
     await go(J.page, '/plans');

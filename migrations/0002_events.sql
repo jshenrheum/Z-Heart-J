@@ -1,0 +1,48 @@
+-- Z ♥ J — 0002: calendar events (kind 'event').
+--
+-- SQLite can't change a CHECK constraint in place, so `records` is rebuilt with
+-- 'event' added to its allowed kinds and every row copied across unchanged.
+-- Dropping the old table cascades to `protected_values` (its foreign key says ON
+-- DELETE CASCADE), so the encrypted values are copied aside first and put back
+-- exactly as they were — same key fingerprint, IV and ciphertext.
+
+PRAGMA defer_foreign_keys = true;
+
+CREATE TABLE protected_values_keep AS SELECT * FROM protected_values;
+
+CREATE TABLE records_v2 (
+  household_id TEXT NOT NULL REFERENCES households(id),
+  id           TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('profile','location','credential','home','contact','list','item','plan','task','event','pins')),
+  parent_id    TEXT,
+  data         TEXT NOT NULL CHECK (json_valid(data)),
+  version      INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  created_by   TEXT NOT NULL CHECK (created_by IN ('jeffrey','zul')),
+  created_at   TEXT NOT NULL,
+  updated_by   TEXT NOT NULL CHECK (updated_by IN ('jeffrey','zul')),
+  updated_at   TEXT NOT NULL,
+  last_op      TEXT,
+  deleted_at   TEXT,
+  deleted_by   TEXT CHECK (deleted_by IS NULL OR deleted_by IN ('jeffrey','zul')),
+  deleted_with TEXT,
+  PRIMARY KEY (household_id, id)
+);
+
+INSERT INTO records_v2 (household_id, id, kind, parent_id, data, version, created_by, created_at, updated_by, updated_at, last_op, deleted_at, deleted_by, deleted_with)
+  SELECT household_id, id, kind, parent_id, data, version, created_by, created_at, updated_by, updated_at, last_op, deleted_at, deleted_by, deleted_with FROM records;
+
+DROP TABLE records;
+
+ALTER TABLE records_v2 RENAME TO records;
+
+CREATE INDEX records_live    ON records (household_id, kind) WHERE deleted_at IS NULL;
+CREATE INDEX records_parent  ON records (household_id, parent_id);
+CREATE INDEX records_trash   ON records (household_id, deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX records_with    ON records (household_id, deleted_with) WHERE deleted_with IS NOT NULL;
+CREATE UNIQUE INDEX task_series_due ON records (household_id, json_extract(data, '$.seriesId'), json_extract(data, '$.due'))
+  WHERE kind = 'task' AND deleted_at IS NULL AND json_extract(data, '$.due') IS NOT NULL;
+
+INSERT OR IGNORE INTO protected_values (household_id, record_id, slot, key_id, iv, ciphertext, updated_by, updated_at)
+  SELECT household_id, record_id, slot, key_id, iv, ciphertext, updated_by, updated_at FROM protected_values_keep;
+
+DROP TABLE protected_values_keep;

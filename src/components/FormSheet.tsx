@@ -5,7 +5,7 @@ import { useOnline } from '../lib/online.ts';
 import { safeUrl } from '../lib/summary.ts';
 import { Icon } from './Icon.tsx';
 
-export type FieldType = 'text' | 'textarea' | 'tel' | 'email' | 'url' | 'date' | 'select' | 'number';
+export type FieldType = 'text' | 'textarea' | 'tel' | 'email' | 'url' | 'date' | 'time' | 'select' | 'number';
 export type Values = Record<string, string>;
 
 export interface FieldDef {
@@ -46,6 +46,9 @@ export function validateField(def: FieldDef, raw: string, all: Values): string |
       break;
     case 'date':
       if (!isDateStr(value)) return 'Enter a real date';
+      break;
+    case 'time':
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return 'Enter a time';
       break;
     case 'number': {
       const n = Number(value);
