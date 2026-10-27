@@ -74,11 +74,12 @@ export interface NewTask {
 }
 
 export interface Actions {
+  /** Adds an item, or puts back a recently used one of the same name instead of making a second. */
   addItem: (listId: string, name: string, qty?: string, note?: string) => Promise<boolean>;
   toggleItem: (listId: string, itemId: string) => Promise<boolean>;
   editItem: (listId: string, itemId: string, patch: { name: string; qty: string; note: string }) => Promise<Outcome>;
   deleteItem: (listId: string, itemId: string) => Promise<boolean>;
-  moveItem: (listId: string, itemId: string, dir: -1 | 1) => Promise<boolean>;
+  /** Removes every recently used (checked) item, with Undo. */
   clearChecked: (listId: string) => Promise<boolean>;
   saveList: (id: string | null, title: string, description: string) => Promise<Outcome<string>>;
   addTask: (t: NewTask) => Promise<Outcome<string>>;
@@ -137,7 +138,9 @@ const without = (rows: Rows, ids: string[]) => {
   for (const id of ids) delete next[id];
   return next;
 };
-const patchData = (rows: Rows, id: string, data: Record<string, unknown>): Rows => (rows[id] ? { ...rows, [id]: { ...rows[id]!, data } } : rows);
+/** Applies an edit optimistically; with `by`, it is also stamped as changed now (the server's own stamp replaces it). */
+const patchData = (rows: Rows, id: string, data: Record<string, unknown>, by?: MemberId): Rows =>
+  rows[id] ? { ...rows, [id]: { ...rows[id]!, data, ...(by ? { updatedBy: by, updatedAt: nowIso() } : {}) } } : rows;
 
 export function StoreProvider({ backend, children }: { backend: Backend; children: ReactNode }) {
   const { toast } = useFeedback();
@@ -321,17 +324,26 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
     };
     const update = (label: string, id: string, data: Record<string, unknown>, quiet = false) => {
       const go = (): Promise<Outcome> =>
-        run({ label, ids: [id], quiet, apply: (r) => patchData(r, id, data), send: () => backend.update(id, ver(id), data), retry: () => void go() });
+        run({ label, ids: [id], quiet, apply: (r) => patchData(r, id, data, meRef.current), send: () => backend.update(id, ver(id), data), retry: () => void go() });
       return go();
     };
     const restoreIds = (ids: string[], label: string) => run<void>({ label, ids, send: () => backend.restore(ids) });
 
+    const listRows = (listId: string) => Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId);
+    // A new or put-back item goes to the end of the list.
+    const nextPosition = (listId: string) => Math.max(0, ...listRows(listId).map((r) => r.data.position as number)) + 1;
+
     const a: Actions = {
       async addItem(listId, name, qty = '', note = '') {
-        const items = Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId);
-        const position = Math.max(0, ...items.map((r) => r.data.position as number)) + 1;
         const n = name.trim();
-        return (await create(`“${n}” wasn’t added`, 'item', newRowId('i'), { name: n, qty, note, checked: false, position }, { parentId: listId })).ok;
+        const key = n.toLowerCase();
+        const recent = listRows(listId)
+          .filter((r) => r.data.checked === true && (r.data.name as string).trim().toLowerCase() === key)
+          .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0];
+        if (recent) {
+          return (await update(`“${recent.data.name as string}” wasn’t put back`, recent.id, { ...recent.data, checked: false, position: nextPosition(listId) })).ok;
+        }
+        return (await create(`“${n}” wasn’t added`, 'item', newRowId('i'), { name: n, qty, note, checked: false, position: nextPosition(listId) }, { parentId: listId })).ok;
       },
 
       async toggleItem(listId, itemId) {
@@ -339,8 +351,9 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         if (!it) return false;
         const was = it.data.checked === true;
         const name = it.data.name as string;
-        const r = await update(`“${name}” wasn’t ${was ? 'unchecked' : 'checked'}`, itemId, { ...it.data, checked: !was });
-        if (r.ok) toast(was ? `“${name}” put back.` : `Checked “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
+        const data = was ? { ...it.data, checked: false, position: nextPosition(listId) } : { ...it.data, checked: true };
+        const r = await update(`“${name}” wasn’t ${was ? 'put back' : 'checked off'}`, itemId, data);
+        if (r.ok) toast(was ? `“${name}” put back.` : `Checked off “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
         return r.ok;
       },
 
@@ -359,23 +372,6 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         return r.ok;
       },
 
-      async moveItem(listId, itemId, dir) {
-        const list = stateRef.current.lists.find((l) => l.id === listId);
-        const i = list?.items.findIndex((x) => x.id === itemId) ?? -1;
-        if (!list || i < 0) return false;
-        const items = list.items;
-        const checked = items[i]!.checked;
-        let j = i + dir;
-        while (j >= 0 && j < items.length && items[j]!.checked !== checked) j += dir;
-        if (j < 0 || j >= items.length) return false;
-        // Land just past the neighbour: halfway between it and the item beyond it.
-        const past = items[j]!.position;
-        const beyond = items[j + dir]?.position ?? past + dir;
-        const position = (past + beyond) / 2;
-        const it = row(itemId)!;
-        return (await update('the new order wasn’t saved', itemId, { ...it.data, position })).ok;
-      },
-
       async clearChecked(listId) {
         const ids = Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId && r.data.checked === true).map((r) => r.id);
         if (ids.length === 0) return false;
@@ -389,7 +385,7 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         });
         if (r.ok && r.value.length > 0) {
           const n = r.value.length;
-          toast(`Cleared ${n} checked item${n === 1 ? '' : 's'}.`, { action: { label: 'Undo', onClick: () => void restoreIds(r.value, 'the cleared items weren’t restored') } });
+          toast(`Cleared ${n} recently used item${n === 1 ? '' : 's'}.`, { action: { label: 'Undo', onClick: () => void restoreIds(r.value, 'the cleared items weren’t restored') } });
         }
         return r.ok;
       },

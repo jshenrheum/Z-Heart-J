@@ -12,10 +12,10 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const token = (name) => { const m = css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`)); if (!m) throw new Error(`token --${name} not found in styles.css`); return m[1].toUpperCase(); };
 const T = Object.fromEntries(
-  ['bg', 'bg-elev', 'surface', 'surface-2', 'surface-3', 'text', 'text-2', 'muted', 'primary', 'on-primary', 'accent', 'heart', 'danger', 'danger-bg', 'good', 'warn', 'input-border', 'focus'].map((n) => [n, token(n)]),
+  ['bg', 'bg-elev', 'surface', 'surface-2', 'surface-3', 'text', 'text-2', 'muted', 'primary', 'on-primary', 'accent', 'heart', 'danger', 'danger-bg', 'good', 'warn', 'input-border', 'focus', 'ink', 'ink-2'].map((n) => [n, token(n)]),
 );
 // Literal tints that live in rules rather than tokens: they must really be in the stylesheet.
-const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910' };
+const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910', porcelainLow: '#E8E5DE', recentTile: '#17181B', dockField: '#0F1012' };
 for (const hex of Object.values(L)) if (!css.toUpperCase().includes(hex)) throw new Error(`${hex} is no longer used in styles.css; update this script`);
 
 const pairs = [
@@ -34,6 +34,10 @@ const pairs = [
   ['placeholder on search field', T.muted, T.surface, 4.5], ['placeholder on input', T.muted, T.bg, 4.5],
   ['input border on bg', T['input-border'], T.bg, 3], ['input border on surface (forms)', T['input-border'], T.surface, 3],
   ['focus ring on bg', T.focus, T.bg, 3], ['focus ring on surface', T.focus, T.surface, 3], ['focus ring on surface-2', T.focus, T['surface-2'], 3],
+  // List tiles: the porcelain gradient is checked at its darkest stop; the charcoal one at its lightest.
+  ['tile name on porcelain', T.ink, L.porcelainLow, 4.5], ['tile details on porcelain', T['ink-2'], L.porcelainLow, 4.5], ['add button icon on porcelain', T['on-primary'], L.porcelainLow, 3],
+  ['recently used name', T['text-2'], L.recentTile, 4.5], ['recently used details', T.muted, L.recentTile, 4.5],
+  ['dock placeholder', T.muted, L.dockField, 4.5], ['dock field border', T['input-border'], L.dockField, 3], ['dock duplicate hint', L.errorText, T.bg, 4.5],
   ['unchecked circle on surface', T.muted, T.surface, 3], ['checked circle on surface', T.primary, T.surface, 3], ['toggle accent on surface', T.accent, T.surface, 3],
 ];
 let failed = 0;

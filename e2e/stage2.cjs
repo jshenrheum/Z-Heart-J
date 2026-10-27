@@ -92,36 +92,36 @@ function startPreview() {
     await go(J.page, '/lists');
     await J.page.getByRole('button', { name: 'Create Groceries' }).click();
     await J.page.getByRole('link', { name: /Groceries/ }).first().click();
-    await J.page.getByPlaceholder(/Add an item/).fill('Milk');
-    await J.page.getByRole('button', { name: /^\s*Add\s*$/ }).last().click();
-    await J.page.locator('.item', { hasText: 'Milk' }).waitFor();
+    await J.page.getByPlaceholder('I need…').fill('Milk');
+    await J.page.getByRole('button', { name: /^Add to / }).click();
+    await J.page.locator('#to-get .tile', { hasText: 'Milk' }).waitFor();
     await J.page.waitForTimeout(400);
     await J.page.reload({ waitUntil: 'networkidle' });
     await ready(J.page);
-    ok(await J.page.locator('.item', { hasText: 'Milk' }).first().isVisible(), 'Milk persisted');
+    ok(await J.page.locator('#to-get .tile', { hasText: 'Milk' }).first().isVisible(), 'Milk persisted');
   });
   await check('quiet refresh: Zul’s open Groceries list shows Jeffrey’s new item without a reload', async () => {
     await go(Z.page, '/lists');
     await Z.page.getByRole('link', { name: /Groceries/ }).first().click();
-    await J.page.getByPlaceholder(/Add an item/).fill('Eggs');
-    await J.page.getByRole('button', { name: /^\s*Add\s*$/ }).last().click();
-    await Z.page.locator('.item', { hasText: 'Eggs' }).waitFor({ timeout: 20000 });
-    ok((await Z.page.locator('.item', { hasText: 'Eggs' }).getAttribute('class')).includes('item'), 'arrived');
+    await J.page.getByPlaceholder('I need…').fill('Eggs');
+    await J.page.getByRole('button', { name: /^Add to / }).click();
+    await Z.page.locator('#to-get .tile', { hasText: 'Eggs' }).waitFor({ timeout: 20000 });
+    ok((await Z.page.locator('#to-get .tile', { hasText: 'Eggs' }).getAttribute('class')).includes('tile'), 'arrived');
   });
   await check('failed save: rolls back to the last saved list, alerts, and Retry saves it', async () => {
     await J.page.route('**/api/records', (route) => route.abort('connectionreset'), { times: 1 });
-    await J.page.getByPlaceholder(/Add an item/).fill('Honey');
-    await J.page.getByRole('button', { name: /^\s*Add\s*$/ }).last().click();
+    await J.page.getByPlaceholder('I need…').fill('Honey');
+    await J.page.getByRole('button', { name: /^Add to / }).click();
     await J.page.locator('.save-banner').waitFor({ timeout: 5000 });
-    eq(await J.page.locator('.item', { hasText: 'Honey' }).count(), 0, 'rolled back');
+    eq(await J.page.locator('#to-get .tile', { hasText: 'Honey' }).count(), 0, 'rolled back');
     ok((await J.page.locator('.save-banner').innerText()).includes('Your last saved version is showing'), 'honest wording');
     J.page.errors = J.page.errors.filter((e) => !/ERR_CONNECTION_RESET|Failed to load resource/.test(e));
     await J.page.getByRole('button', { name: 'Retry' }).click();
-    await J.page.locator('.item', { hasText: 'Honey' }).waitFor({ timeout: 5000 });
+    await J.page.locator('#to-get .tile', { hasText: 'Honey' }).waitFor({ timeout: 5000 });
     await J.page.waitForTimeout(400);
     await J.page.reload({ waitUntil: 'networkidle' });
     await ready(J.page);
-    eq(await J.page.locator('.item', { hasText: 'Honey' }).count(), 1, 'saved exactly once');
+    eq(await J.page.locator('#to-get .tile', { hasText: 'Honey' }).count(), 1, 'saved exactly once');
   });
 
   // ---------------------------------------------------------------- conflicts
@@ -271,14 +271,14 @@ function startPreview() {
     await go(Z.page, '/lists');
     await Z.ctx.clearCookies(); // the Access session ends
     await Z.page.getByRole('link', { name: /Groceries/ }).first().click();
-    await Z.page.getByPlaceholder(/Add an item/).fill('Bread');
-    await Z.page.getByRole('button', { name: /^\s*Add\s*$/ }).last().click();
+    await Z.page.getByPlaceholder('I need…').fill('Bread');
+    await Z.page.getByRole('button', { name: /^Add to / }).click();
     await Z.page.getByText('Your sign-in has expired').waitFor({ timeout: 5000 });
     await Z.page.getByRole('button', { name: 'Sign in again' }).click();
     await Z.page.waitForURL(/__local\/sign-in/);
     await signIn(Z.page, 'Zul');
     await go(Z.page, '/lists/' + (await J.page.evaluate(() => fetch('/api/state').then((r) => r.json()).then((s) => s.rows.find((x) => x.kind === 'list').id))));
-    eq(await Z.page.locator('.item', { hasText: 'Bread' }).count(), 0, 'nothing was saved while signed out');
+    eq(await Z.page.locator('#to-get .tile', { hasText: 'Bread' }).count(), 0, 'nothing was saved while signed out');
   });
   await check('sign out: ends the session and returns to sign-in', async () => {
     await go(J.page, '/settings');

@@ -28,10 +28,10 @@ The local preview keeps everything (database and a throwaway encryption key) in 
 | Command | What it checks |
 |---|---|
 | `npm run typecheck` | Strict TypeScript: the app (browser types only), tests and scripts (Node types), the Worker (Workers types) |
-| `npm test` | 50 unit tests: dates and time zone, recurrence, completion and undo, work-summary allowlist, search ranking and protected-value exclusion, record validation, calendar repeats and agenda |
+| `npm test` | 56 unit tests: dates and time zone, recurrence, completion and undo, work-summary allowlist, search ranking and protected-value exclusion, record validation, calendar repeats and agenda, list suggestions |
 | `npm run test:worker` | 46 tests of the real Worker in workerd with a real local D1: sign-in (forged, expired, wrong audience, not a member), setup errors, headers, validation, 409 conflicts, trash and purge, task completion races, encryption, export, household scoping, calendar events, and migration 0002 on a filled database |
-| `npm run contrast` | WCAG contrast for every text and control colour pairing (44) |
-| `npm run e2e` | 73 browser checks on the demo build (serve it with `npm run preview:demo` first) |
+| `npm run contrast` | WCAG contrast for every text and control colour pairing (52) |
+| `npm run e2e` | 79 browser checks on the demo build (serve it with `npm run preview:demo` first) |
 | `npm run e2e:live` | 20 browser checks on the production build behind the local Worker, with two phones (Jeffrey and Zul) |
 | `npm run build` | Also refuses a production build containing any demo content or demo control, inline script or style, or source maps (`scripts/check-dist.mjs`) |
 
@@ -45,7 +45,7 @@ If your installed Chromium differs from the one Playwright expects, set `CHROMIU
   - **Copy work summary** is built from an explicit allowlist of ordinary fields. A credential number can't be in it.
   - Fax numbers are copy-only, never a `tel:` link. Links only open as `http(s)`.
   - **Protected values** (a DEA number, an account number, a plate…) are saved encrypted on the server and shown only when someone taps **Reveal**. A revealed value is hidden again after 30 seconds or when the app goes to the background. The card says who saved it and who last revealed it.
-- **Lists** — add, check (with Undo), edit, reorder, clear checked (with Undo), duplicate warning.
+- **Lists** — items as text tiles: porcelain for what to get, charcoal for Recently used (closed until opened). Tap a tile once you have it (with Undo); tap a recently used one to put it back. Hold a tile (or right-click, or Edit items) to edit or remove it. The "I need…" field sits at the foot of the screen, above the keyboard while typing: it offers matching recently used items, brings one back rather than adding a copy, and warns about a duplicate. A–Z order is kept per device. Clear recently used has Undo.
 - **Plans** — tasks and plans with steps. A recurring task either follows a schedule (from the due date) or repeats a set time after it's done. Month ends don't drift (Jan 31 → Feb 28 → Mar 31). Completing is idempotent and creates exactly one next occurrence, even from two phones at once; Undo takes it back if nobody has touched it.
 - **Settings** — who you're signed in as and Sign out, the **Trash** (30 days, Restore), **Export** (ordinary data as JSON; never protected values), install steps.
 - **Sharing** — everything is shared by both of you. A name on a card is attribution, not privacy.

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { MEMBERS, type ListItem } from '../data/types.ts';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from 'react';
+import type { ListItem } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { QuickAdd } from '../components/QuickAdd.tsx';
+import { NeedDock } from '../components/NeedDock.tsx';
+import { itemSub } from '../lib/lists.ts';
 import { CardLink, ConfirmDialog, EmptyState, PageHeader, PinButton, UpdatedBy } from '../components/ui.tsx';
 import { routes } from '../lib/routes.ts';
 import { NotFound } from './NotFound.tsx';
@@ -29,8 +30,7 @@ export function ListsPage() {
         <div className="stack">
           {state.lists.map((l) => {
             const open = l.items.filter((i) => !i.checked).length;
-            const done = l.items.length - open;
-            return <CardLink key={l.id} to={routes.list(l.id)} icon="list" title={l.title} sub={`${open} to get${done ? ` · ${done} checked` : ''}`} meta={l.description ? <span className="muted small">{l.description}</span> : undefined} />;
+            return <CardLink key={l.id} to={routes.list(l.id)} icon="list" title={l.title} sub={`${open} to get`} meta={l.description ? <span className="muted small">{l.description}</span> : undefined} />;
           })}
         </div>
       )}
@@ -47,54 +47,115 @@ export function ListsPage() {
   );
 }
 
+/** Per-device preference: keep a list in A–Z order. */
+const AZ_KEY = 'zhj:list-az';
+const readAz = () => {
+  try {
+    return localStorage.getItem(AZ_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const writeAz = (on: boolean) => {
+  try {
+    localStorage.setItem(AZ_KEY, on ? '1' : '0');
+  } catch {
+    // Private mode or storage off: the choice lasts until the page closes.
+  }
+};
+
+/**
+ * Tap to act; press and hold (or right-click) to edit. After a hold, the finger
+ * lifting produces no click, so the item isn't also checked off.
+ */
+function useHold(onTap: () => void, onHold: () => void) {
+  const timer = useRef<number | undefined>(undefined);
+  const held = useRef(false);
+  const origin = useRef<{ x: number; y: number } | null>(null);
+  const stop = () => {
+    if (timer.current !== undefined) window.clearTimeout(timer.current);
+    timer.current = undefined;
+  };
+  useEffect(() => stop, []);
+  return {
+    onPointerDown: (e: ReactPointerEvent) => {
+      held.current = false;
+      stop();
+      if (e.button !== 0) return;
+      origin.current = { x: e.clientX, y: e.clientY };
+      timer.current = window.setTimeout(() => {
+        timer.current = undefined;
+        held.current = true;
+        onHold();
+      }, 450);
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      const o = origin.current;
+      if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > 10) stop();
+    },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+    onPointerLeave: stop,
+    onTouchEnd: (e: ReactTouchEvent) => {
+      if (held.current) e.preventDefault();
+    },
+    onContextMenu: (e: ReactMouseEvent) => {
+      e.preventDefault();
+      if (held.current) return;
+      stop();
+      held.current = true;
+      onHold();
+    },
+    onClick: () => {
+      if (held.current) {
+        held.current = false;
+        return;
+      }
+      onTap();
+    },
+  };
+}
+
+function Tile({ item, recent, editing, onTap, onEdit }: { item: ListItem; recent: boolean; editing: boolean; onTap: () => void; onEdit: () => void }) {
+  const press = useHold(editing ? onEdit : onTap, onEdit);
+  const sub = itemSub(item);
+  const action = editing ? 'Edit' : recent ? 'Put back' : 'Check off';
+  return (
+    <li>
+      <button
+        type="button"
+        className={`tile ${recent ? 'tile-recent' : ''} ${editing ? 'is-editing' : ''} ${item.sync ? 'is-saving' : ''}`}
+        aria-label={`${action} “${item.name}”${sub ? `, ${sub}` : ''}`}
+        aria-busy={item.sync ? true : undefined}
+        {...press}
+      >
+        <span className="tile-name">{item.name}</span>
+        {sub && <span className="tile-sub">{sub}</span>}
+        {editing && <Icon name="edit" size={14} className="tile-mark" />}
+      </button>
+    </li>
+  );
+}
+
 export function ListPage({ id }: { id: string }) {
   const { state, actions } = useStore();
   const forms = useForms();
   const list = state.lists.find((l) => l.id === id);
-  const [reorder, setReorder] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [az, setAz] = useState(readAz);
   const [confirmClear, setConfirmClear] = useState(false);
   if (!list) return <NotFound what="list" />;
 
   const open = list.items.filter((i) => !i.checked);
-  const checked = list.items.filter((i) => i.checked);
-
-  const row = (i: ListItem, pos: number, count: number) => (
-    <li key={i.id} className={`item ${i.checked ? 'is-done' : ''} ${i.sync ? 'is-saving' : ''}`}>
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={i.checked}
-        className="check"
-        aria-label={i.checked ? `Put back “${i.name}”` : `Check off “${i.name}”`}
-        onClick={() => void actions.toggleItem(list.id, i.id)}
-      >
-        {i.checked && <Icon name="check" size={18} />}
-      </button>
-      <button type="button" className="item-body" onClick={() => forms.open({ kind: 'item', listId: list.id, itemId: i.id })} aria-label={`Edit “${i.name}”`}>
-        <span className="item-name">{i.name}</span>
-        {(i.qty || i.note) && <span className="item-sub">{[i.qty, i.note].filter(Boolean).join(' · ')}</span>}
-      </button>
-      {i.sync ? (
-        <span className="muted small" aria-live="polite">Saving…</span>
-      ) : reorder && !i.checked ? (
-        <span className="reorder">
-          <button type="button" className="icon-btn" disabled={pos === 0} onClick={() => void actions.moveItem(list.id, i.id, -1)} aria-label={`Move “${i.name}” up`}>
-            <Icon name="arrowUp" size={18} />
-          </button>
-          <button type="button" className="icon-btn" disabled={pos === count - 1} onClick={() => void actions.moveItem(list.id, i.id, 1)} aria-label={`Move “${i.name}” down`}>
-            <Icon name="arrowDown" size={18} />
-          </button>
-        </span>
-      ) : (
-        <span className="item-by" title={`Last changed by ${MEMBERS[i.updatedBy].name}`} aria-label={`Last changed by ${MEMBERS[i.updatedBy].name}`}>
-          {MEMBERS[i.updatedBy].initial}
-        </span>
-      )}
-    </li>
+  const shown = az ? [...open].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })) : open;
+  const recent = list.items.filter((i) => i.checked).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const edit = (i: ListItem) => forms.open({ kind: 'item', listId: list.id, itemId: i.id });
+  const tile = (i: ListItem) => (
+    <Tile key={i.id} item={i} recent={i.checked} editing={editing} onTap={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />
   );
 
   return (
-    <div className="page">
+    <div className="page list-page">
       <PageHeader
         title={list.title}
         sub={list.description || undefined}
@@ -103,48 +164,73 @@ export function ListPage({ id }: { id: string }) {
           <>
             <PinButton target={{ kind: 'list', id: list.id }} />
             <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'list', id: list.id })}>
-              <Icon name="edit" size={17} /> Edit
+              <Icon name="edit" size={17} /> Edit list
             </button>
           </>
         }
       />
-      <QuickAdd listId={list.id} listTitle={list.title} grabFocus />
 
-      {open.length === 0 && checked.length === 0 ? (
-        <EmptyState title="Nothing on this list yet." body="Type an item above and press Enter. The field stays ready for the next one." />
-      ) : (
-        <>
-          <div className="list-tools">
-            <span className="muted small">{open.length} to get</span>
-            {open.length > 1 && (
-              <button type="button" className={`btn btn-quiet btn-sm ${reorder ? 'is-on' : ''}`} aria-pressed={reorder} onClick={() => setReorder((r) => !r)}>
-                <Icon name="arrowDown" size={16} /> {reorder ? 'Done reordering' : 'Reorder'}
+      <section className="tiles-section" aria-labelledby="to-get-h">
+        <div className="list-tools">
+          <h2 className="section-title" id="to-get-h">
+            To get <span className="count">{open.length}</span>
+          </h2>
+          {list.items.length > 0 && (
+            <div className="list-tools-actions">
+              {open.length > 1 && (
+                <button
+                  type="button"
+                  className={`btn btn-quiet btn-sm ${az ? 'is-on' : ''}`}
+                  aria-pressed={az}
+                  onClick={() => {
+                    writeAz(!az);
+                    setAz(!az);
+                  }}
+                >
+                  A–Z
+                </button>
+              )}
+              <button type="button" className={`btn btn-quiet btn-sm ${editing ? 'is-on' : ''}`} aria-pressed={editing} onClick={() => setEditing((v) => !v)}>
+                {editing ? 'Done' : 'Edit items'}
               </button>
-            )}
-          </div>
-          {open.length > 0 ? <ul className="item-list card">{open.map((i, p) => row(i, p, open.length))}</ul> : <p className="muted">Everything’s checked off.</p>}
-        </>
-      )}
+            </div>
+          )}
+        </div>
+        {open.length > 0 ? (
+          <>
+            <ul className="tiles" id="to-get">
+              {shown.map(tile)}
+            </ul>
+            <p className="tile-hint">{editing ? 'Tap an item to edit or remove it.' : 'Tap an item once you have it. Hold it to edit.'}</p>
+          </>
+        ) : list.items.length === 0 ? (
+          <EmptyState title="Nothing on this list yet." body="Type what you need in the field below. Each item becomes a tile you tap once you have it." />
+        ) : (
+          <p className="muted">Everything’s checked off. Open Recently used to put things back.</p>
+        )}
+      </section>
 
-      {checked.length > 0 && (
-        <details className="checked">
+      {recent.length > 0 && (
+        <details className="recent">
           <summary>
-            Checked <span className="count">{checked.length}</span>
+            <Icon name="chevron" size={16} className="recent-chevron" />
+            Recently used <span className="count">{recent.length}</span>
           </summary>
-          <ul className="item-list card">{checked.map((i, p) => row(i, p, checked.length))}</ul>
-          <button type="button" className="btn btn-quiet btn-sm" onClick={() => setConfirmClear(true)}>
-            <Icon name="trash" size={16} /> Clear checked
+          <ul className="tiles tiles-recent">{recent.map(tile)}</ul>
+          <button type="button" className="btn btn-quiet btn-sm recent-clear" onClick={() => setConfirmClear(true)}>
+            <Icon name="trash" size={16} /> Clear recently used
           </button>
         </details>
       )}
 
       <UpdatedBy by={list.updatedBy} at={list.updatedAt} />
+      <NeedDock list={list} />
 
       {confirmClear && (
         <ConfirmDialog
-          title={`Clear ${checked.length} checked item${checked.length === 1 ? '' : 's'}?`}
+          title={`Clear ${recent.length} recently used item${recent.length === 1 ? '' : 's'}?`}
           body="They’ll be removed from this list for both of you. You can undo right after."
-          confirmLabel="Clear checked"
+          confirmLabel="Clear"
           danger
           onCancel={() => setConfirmClear(false)}
           onConfirm={() => {
