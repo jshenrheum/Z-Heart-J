@@ -45,6 +45,8 @@
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 
   --safe-top: env(safe-area-inset-top, 0px);
+  /* iOS fades whatever sits just under the clock; on a phone with a notch the header starts below that fade. */
+  --top-gap: min(var(--safe-top), 22px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-h: 64px;
 }
@@ -96,7 +98,7 @@ img, svg { display: block; max-width: 100%; }
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: calc(var(--safe-top) + 8px) 16px 8px;
+  padding: calc(var(--safe-top) + var(--top-gap) + 8px) 16px 8px;
   background: rgba(8, 9, 10, 0.78);
   backdrop-filter: saturate(160%) blur(20px);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
@@ -200,7 +202,7 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
   max-width: 720px; margin: 0 auto 16px; padding: 12px 14px; border-radius: var(--radius-sm);
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
 }
-.save-banner { background: #2A1214; border: 1px solid #5B2328; color: var(--text); position: sticky; z-index: 15; top: calc(var(--safe-top) + 69px); box-shadow: var(--shadow-lift); } /* stays in view if the person has scrolled down the page */
+.save-banner { background: #2A1214; border: 1px solid #5B2328; color: var(--text); position: sticky; z-index: 15; top: calc(var(--safe-top) + var(--top-gap) + 69px); box-shadow: var(--shadow-lift); } /* stays in view if the person has scrolled down the page */
 .save-banner p { flex: 1 1 220px; font-weight: 500; }
 .save-banner-actions { display: flex; gap: 8px; }
 .update-banner { background: var(--surface-2); border: 1px solid var(--line); }
