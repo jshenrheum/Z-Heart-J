@@ -420,6 +420,10 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .list-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
 .list-tools-actions { display: flex; gap: 6px; }
 
+.offline-note { display: flex; align-items: flex-start; gap: 8px; max-width: 720px; margin: 0 auto 16px; padding: 10px 14px; font-size: 0.875rem; color: var(--text-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.offline-note svg { flex: none; margin-top: 2px; color: var(--accent); }
+@media (min-width: 900px) { .offline-note { max-width: 980px; } }
+
 /* ------------------------------------------------------------------ list tiles
    To get: porcelain tiles with ink type, the one bright surface on the page.
    Recently used: matte charcoal, quiet until needed. Text only, no pictures. */

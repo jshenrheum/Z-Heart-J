@@ -5,6 +5,7 @@ import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { NeedDock } from '../components/NeedDock.tsx';
 import { itemSub, listWords } from '../lib/lists.ts';
+import { useOnline } from '../lib/online.ts';
 import { CardLink, ConfirmDialog, EmptyState, PageHeader, PinButton, UpdatedBy } from '../components/ui.tsx';
 import { routes } from '../lib/routes.ts';
 import { NotFound } from './NotFound.tsx';
@@ -148,7 +149,10 @@ function Tile({ item, recent, editing, onTap, onEdit }: { item: ListItem; recent
 }
 
 export function ListPage({ id }: { id: string }) {
-  const { state, actions } = useStore();
+  const { state, actions, offline } = useStore();
+  const online = useOnline();
+  // Without a connection a list still ticks and adds; editing, pinning and clearing wait.
+  const away = !online || offline.copy;
   const forms = useForms();
   const list = state.lists.find((l) => l.id === id);
   const [editing, setEditing] = useState(false);
@@ -162,7 +166,7 @@ export function ListPage({ id }: { id: string }) {
   const words = listWords(list.title);
   const edit = (i: ListItem) => forms.open({ kind: 'item', listId: list.id, itemId: i.id });
   const tile = (i: ListItem) => (
-    <Tile key={i.id} item={i} recent={i.checked} editing={editing} onTap={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />
+    <Tile key={i.id} item={i} recent={i.checked} editing={editing && !away} onTap={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />
   );
 
   return (
@@ -172,12 +176,14 @@ export function ListPage({ id }: { id: string }) {
         sub={list.description || undefined}
         back={{ to: routes.lists, label: 'Lists' }}
         actions={
-          <>
-            <PinButton target={{ kind: 'list', id: list.id }} />
-            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'list', id: list.id })}>
-              <Icon name="edit" size={17} /> Edit list
-            </button>
-          </>
+          away ? undefined : (
+            <>
+              <PinButton target={{ kind: 'list', id: list.id }} />
+              <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'list', id: list.id })}>
+                <Icon name="edit" size={17} /> Edit list
+              </button>
+            </>
+          )
         }
       />
 
@@ -201,9 +207,11 @@ export function ListPage({ id }: { id: string }) {
                   A–Z
                 </button>
               )}
-              <button type="button" className={`btn btn-quiet btn-sm ${editing ? 'is-on' : ''}`} aria-pressed={editing} onClick={() => setEditing((v) => !v)}>
-                {editing ? 'Done' : 'Edit items'}
-              </button>
+              {!away && (
+                <button type="button" className={`btn btn-quiet btn-sm ${editing ? 'is-on' : ''}`} aria-pressed={editing} onClick={() => setEditing((v) => !v)}>
+                  {editing ? 'Done' : 'Edit items'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -212,7 +220,7 @@ export function ListPage({ id }: { id: string }) {
             <ul className="tiles" id="to-get">
               {shown.map(tile)}
             </ul>
-            <p className="tile-hint">{editing ? words.editHint : words.hint}</p>
+            <p className="tile-hint">{editing && !away ? words.editHint : away ? words.hint.replace(/ Hold it.*$/, '') : words.hint}</p>
           </>
         ) : list.items.length === 0 ? (
           <EmptyState title={words.empty} body={words.emptyBody} />
@@ -228,7 +236,7 @@ export function ListPage({ id }: { id: string }) {
             {words.recent} <span className="count">{recent.length}</span>
           </summary>
           <ul className="tiles tiles-recent">{recent.map(tile)}</ul>
-          <button type="button" className="btn btn-quiet btn-sm recent-clear" onClick={() => setConfirmClear(true)}>
+          <button type="button" className="btn btn-quiet btn-sm recent-clear" onClick={() => setConfirmClear(true)} hidden={away}>
             <Icon name="trash" size={16} /> {words.clear}
           </button>
         </details>

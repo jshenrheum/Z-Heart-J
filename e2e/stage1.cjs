@@ -299,12 +299,32 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       eq(await honey(), 1, 'Honey saved');
       eq(await page.locator('.save-banner').count(), 0, 'banner cleared');
     });
-    await check('offline: shows the connect message and recovers when back online', async () => {
+    await check('offline: the list stays open, ticks and new items wait, and other pages say to connect', async () => {
       await ctx.setOffline(true); await page.waitForTimeout(300);
-      ok((await page.innerText('main')).includes('Connect to view or update your shared information.'), 'offline message');
-      await ctx.setOffline(false); await page.waitForTimeout(300);
-      eq(await page.locator('.offline-panel').count(), 0, 'panel gone');
-      ok(await toGet(page, 'Honey').first().isVisible(), 'list is back');
+      ok(await toGet(page, 'Honey').first().isVisible(), 'the list is still here');
+      ok((await page.locator('.offline-note').innerText()).includes('Offline'), 'says it is offline');
+      eq(await page.getByRole('button', { name: 'Edit items' }).count(), 0, 'editing waits for a connection');
+      await page.getByRole('button', { name: /^Check off “Milk”/ }).click();
+      await need(page).fill('Olives');
+      await need(page).press('Enter');
+      await page.waitForTimeout(200);
+      eq(await toGet(page, 'Milk').count(), 0, 'Milk checked off offline');
+      ok(await toGet(page, 'Olives').first().isVisible(), 'Olives added offline');
+      ok((await page.locator('.offline-note').innerText()).includes('2 changes waiting to sync'), await page.locator('.offline-note').innerText());
+      eq(await page.locator('.save-banner').count(), 0, 'no failure alert');
+      await nav(page, 'Home').click();
+      ok((await page.innerText('main')).includes('Connect to view or update your shared information.'), 'other pages wait');
+      await page.getByRole('link', { name: 'Open your lists' }).click();
+      await page.getByRole('link', { name: /Groceries/ }).first().click();
+      ok(await toGet(page, 'Olives').first().isVisible(), 'still there');
+    });
+    await check('offline: back online, the waiting changes are sent and the note goes', async () => {
+      await ctx.setOffline(false);
+      await page.getByText(/Synced 2 changes made offline/).waitFor({ timeout: 5000 });
+      eq(await page.locator('.offline-note').count(), 0, 'note gone');
+      eq(await toGet(page, 'Milk').count(), 0, 'Milk stays checked off');
+      ok(await toGet(page, 'Olives').first().isVisible(), 'Olives kept');
+      ok(await page.getByRole('button', { name: 'Edit items' }).isVisible(), 'editing is back');
     });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();

@@ -11,6 +11,7 @@ import { Icon, type IconName } from './Icon.tsx';
 import { Wordmark } from './Wordmark.tsx';
 import { DemoBanner } from '../demo/ui.tsx';
 import { clearAppCaches } from '../lib/pwa.ts';
+import { forgetLists } from '../lib/outbox.ts';
 
 const NAV: Array<{ to: string; label: string; icon: IconName; match: (p: string) => boolean }> = [
   { to: routes.home, label: 'Home', icon: 'home', match: (p) => p === '/' || p === '/search' },
@@ -23,9 +24,12 @@ const NAV: Array<{ to: string; label: string; icon: IconName; match: (p: string)
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { path } = useRoute();
-  const { me, saving, status, session, backend } = useStore();
+  const { me, saving, status, session, backend, offline, state } = useStore();
   const online = useOnline();
   const ready = status === 'ready' && session.kind === 'ok';
+  const away = !online || offline.copy;
+  // Lists open without a connection, from the copy on this phone; everything else waits.
+  const listsAway = away && status === 'ready' && path.startsWith('/lists');
   useFocusOnRouteChange(path);
 
   return (
@@ -45,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link to={routes.search} className="icon-btn" aria-label="Search">
             <Icon name="search" />
           </Link>
-          {online && ready && <AddMenu />}
+          {!away && ready && <AddMenu />}
           {ready && (
             <Link to={routes.settings} className="avatar" aria-label={`Settings — ${backend.mode === 'demo' ? 'viewing as' : 'signed in as'} ${MEMBERS[me].name}`}>
               {MEMBERS[me].initial}
@@ -71,8 +75,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main id="main" tabIndex={-1}>
         <UpdateBanner />
-        {!online ? (
-          <OfflinePanel />
+        {listsAway ? (
+          <>
+            {__DEMO__ && <DemoBanner />}
+            <OfflineNote />
+            {children}
+          </>
+        ) : away ? (
+          <OfflinePanel canOpenLists={status === 'ready' && state.lists.length > 0} />
         ) : session.kind !== 'ok' ? (
           <SessionPanel />
         ) : status === 'loading' ? (
@@ -85,6 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <>
             {__DEMO__ && <DemoBanner />}
             <SaveBanner />
+            {offline.waiting > 0 && path.startsWith('/lists') && <OfflineNote />}
             {children}
           </>
         )}
@@ -95,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 /** Sign out of Cloudflare Access (and drop this app's caches on the way). */
 export async function signOut() {
+  forgetLists(); // the lists kept for offline, and any changes still waiting
   await clearAppCaches().catch(() => undefined);
   navigator.serviceWorker?.controller?.postMessage('CLEAR_CACHES');
   window.location.assign('/cdn-cgi/access/logout');
@@ -168,14 +180,38 @@ function SaveBanner() {
   );
 }
 
-function OfflinePanel() {
+function OfflinePanel({ canOpenLists }: { canOpenLists: boolean }) {
   return (
     <div className="offline-panel" role="status">
       <Wordmark height={64} />
       <h1 className="page-title">You’re offline</h1>
       <p>Connect to view or update your shared information.</p>
-      <p className="muted">Nothing from your household is kept on this device, so there is nothing to show until you’re back online.</p>
+      {canOpenLists ? (
+        <>
+          <p className="muted">Your shared lists still open: they’re kept on this phone for the shop. Nothing else from your household is.</p>
+          <Link to={routes.lists} className="btn btn-primary">
+            <Icon name="list" size={18} /> Open your lists
+          </Link>
+        </>
+      ) : (
+        <p className="muted">Only your shared lists are kept on this phone, once you’ve opened the app online. Nothing else from your household is.</p>
+      )}
     </div>
+  );
+}
+
+/** On a list without a connection, or while offline changes wait to be sent. */
+function OfflineNote() {
+  const { offline } = useStore();
+  const online = useOnline();
+  const away = !online || offline.copy;
+  const n = offline.waiting;
+  const waiting = n ? `${n} change${n === 1 ? '' : 's'} waiting to sync.` : '';
+  return (
+    <p className="offline-note" role="status">
+      <Icon name={away ? 'wifi' : 'refresh'} size={16} />
+      <span>{away ? `Offline · the copy on this phone. Ticks and new items sync when you’re back online.${waiting ? ` ${waiting}` : ''}` : waiting || 'Syncing…'}</span>
+    </p>
   );
 }
 

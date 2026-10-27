@@ -203,7 +203,8 @@ export function createDemoBackend(): DemoBackend {
     if (!navigator.onLine) throw new SaveError('You’re offline.', 0, 'offline');
     if (canFail && self.failNext) {
       self.failNext = false;
-      throw new SaveError('Simulated failure (demo).', 0, 'network');
+      // A server error, not a lost connection: list changes made without a connection wait instead of failing.
+      throw new SaveError('Simulated server error (demo).', 503, 'server_error');
     }
   }
   function live(id?: string) {

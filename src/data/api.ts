@@ -9,10 +9,24 @@ import { ConflictError, SaveError, SessionError, type Backend, type ProtectedInf
  * with a redirect to its login page, which shows up here as "sign in again".
  */
 
+/** A request with no answer by then counts as no connection (a shop's weak signal), so list changes wait instead. */
+const TIMEOUT_MS = 10_000;
+
 async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ status: number; data: T; res: Response }> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    return await send<T>(method, path, body, headers, ctrl.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function send<T>(method: string, path: string, body: unknown, headers: Record<string, string>, signal: AbortSignal): Promise<{ status: number; data: T; res: Response }> {
   let res: Response;
   try {
     res = await fetch(path, {
+      signal,
       method,
       credentials: 'same-origin',
       redirect: 'manual',
@@ -32,7 +46,12 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
     // Something other than the Worker answered (most likely the sign-in page).
     throw new SessionError('expired', 'Your sign-in has expired.');
   }
-  const data = (await res.json()) as T & { error?: string; message?: string; current?: Row };
+  let data: T & { error?: string; message?: string; current?: Row };
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    throw new SaveError('The connection dropped.', 0, 'network');
+  }
   if (res.ok) return { status: res.status, data, res };
 
   const message = data?.message ?? 'The server couldn’t save that.';

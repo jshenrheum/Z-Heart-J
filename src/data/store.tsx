@@ -8,6 +8,8 @@ import { useFeedback } from '../lib/feedback.tsx';
 import { resolvePin } from '../lib/pins.ts';
 import { MAX_PHOTOS, MAX_PINS, newRowId, toHousehold, WEDDING_ID, type Change, type Kind, type Row } from '../lib/records.ts';
 import { preparePhoto } from '../lib/photos.ts';
+import { applyOutbox, COPY_KEY, forgetLists, listRows as copyRows, OUTBOX_KEY, queueAdd, queueToggle, readJson, toggleChange, writeJson, type ListsCopy, type OutboxEntry } from '../lib/outbox.ts';
+import { useOnline } from '../lib/online.ts';
 import type { Recurrence } from '../lib/recurrence.ts';
 
 /**
@@ -144,6 +146,12 @@ interface Store {
   refresh: () => Promise<void>;
   backend: Backend;
   actions: Actions;
+  /**
+   * Shared lists without a connection: `copy` is true while what's shown came from
+   * the copy kept on this phone rather than the server; `waiting` counts ticks and
+   * new items made offline that haven't reached the server yet.
+   */
+  offline: { copy: boolean; waiting: number };
   /** Demo build only: who you're viewing as, and the simulated failure switch. */
   demo?: { setMe: (m: MemberId) => void; failNext: boolean; setFailNext: (b: boolean) => void };
 }
@@ -179,6 +187,15 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
   const [pending, setPending] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [failNext, setFailNextState] = useState(false);
+  const live = backend.mode === 'live';
+  const online = useOnline();
+  // The demo keeps nothing on the device; the signed-in app keeps its lists (only).
+  const [outbox, setOutbox] = useState<OutboxEntry[]>(() => (live ? (readJson<OutboxEntry[]>(OUTBOX_KEY) ?? []) : []));
+  const [copy, setCopy] = useState(false);
+  const outboxRef = useRef(outbox);
+  outboxRef.current = outbox;
+  const copyRef = useRef(copy);
+  copyRef.current = copy;
 
   const serverRef = useRef(server);
   serverRef.current = server;
@@ -193,7 +210,7 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const rows = useMemo(() => ops.reduce((r, op) => (op.apply ? op.apply(r) : r), server), [server, ops]);
+  const rows = useMemo(() => ops.reduce((r, op) => (op.apply ? op.apply(r) : r), applyOutbox(server, outbox, me)), [server, ops, outbox, me]);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const savingIds = useMemo(() => new Set(ops.flatMap((o) => o.ids)), [ops]);
@@ -227,11 +244,23 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
       etag.current = r.etag;
       setServer(index(r.snapshot.rows));
       setMeState(r.snapshot.me);
+      setCopy(false);
       setStatus('ready');
       setSession({ kind: 'ok' });
     } catch (e) {
-      if (e instanceof SessionError) setSession({ kind: e.kind, message: e.message });
-      else if (statusRef.current === 'loading') setStatus('error');
+      if (e instanceof SessionError) {
+        setSession({ kind: e.kind, message: e.message });
+        if (e.kind === 'not_member') forgetLists();
+      } else if (statusRef.current === 'loading') {
+        // No connection at start: open the lists from the copy on this phone, if there is one.
+        const saved = live ? readJson<ListsCopy>(COPY_KEY) : null;
+        if (saved?.rows?.length) {
+          setServer(index(saved.rows));
+          setMeState(saved.me);
+          setCopy(true);
+          setStatus('ready');
+        } else setStatus('error');
+      }
       // Later refresh failures stay quiet: the screen keeps the last saved copy.
     } finally {
       loading.current = false;
@@ -262,6 +291,81 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
     };
   }, [backend, refresh]);
 
+  // ---------------------------------------------------------------- lists offline
+
+  // Keep the server's lists (never the screen's unsaved state, never anything else) on this phone.
+  useEffect(() => {
+    if (!live || copy || status !== 'ready') return;
+    writeJson(COPY_KEY, { me, savedAt: nowIso(), rows: copyRows(Object.values(server)) } satisfies ListsCopy);
+  }, [live, copy, status, server, me]);
+  useEffect(() => {
+    if (live) writeJson(OUTBOX_KEY, outbox.length ? outbox : null);
+  }, [live, outbox]);
+
+  const flushing = useRef(false);
+  const flush = useCallback(async () => {
+    if (flushing.current || outboxRef.current.length === 0) return;
+    flushing.current = true;
+    let sent = 0;
+    let lost = 0;
+    try {
+      for (const e of [...outboxRef.current]) {
+        try {
+          const cur = serverRef.current[e.id];
+          if (e.t === 'add' && !cur) {
+            if (serverRef.current[e.listId]) {
+              merge(await backend.create('item', e.id, e.data, e.listId));
+              sent += 1;
+            } else lost += 1; // its list was removed meanwhile
+          } else {
+            // A tick, or an offline addition that arrived after all: make the server's copy match.
+            const want = e.t === 'add' ? { t: 'toggle' as const, id: e.id, checked: e.data.checked, at: e.at } : e;
+            let now = cur;
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+              const data = toggleChange(want, now);
+              if (!data || !now) break;
+              try {
+                merge(await backend.update(e.id, now.version, data));
+                sent += 1;
+                break;
+              } catch (err) {
+                if (!(err instanceof ConflictError) || attempt === 1) throw err;
+                merge({ rows: [err.current], removed: [] });
+                now = err.current;
+              }
+            }
+          }
+        } catch (err) {
+          if (err instanceof SessionError) {
+            setSession({ kind: err.kind, message: err.message });
+            return;
+          }
+          if (!(err instanceof SaveError) || err.status === 0 || err.status >= 500) return; // still no connection: try again later
+          lost += 1; // refused (the list or item is gone): let it go
+        }
+        setOutbox((b) => b.filter((x) => x !== e));
+      }
+    } finally {
+      flushing.current = false;
+      if (sent) toast(`Synced ${sent} change${sent === 1 ? '' : 's'} made offline.`);
+      if (lost) toast(`${lost} offline change${lost === 1 ? '' : 's'} couldn’t be saved: ${lost === 1 ? 'its' : 'their'} list or item was removed on the other phone.`, { tone: 'error' });
+    }
+  }, [backend, merge, toast]);
+
+  // Back online, with the server's copy loaded: send what waited. A weak signal can
+  // fail without the phone noticing, so while anything waits, try again every so often.
+  const canSync = online && !copy && status === 'ready' && session.kind === 'ok' && outbox.length > 0;
+  useEffect(() => {
+    if (!canSync) return;
+    void flush();
+    const again = window.setInterval(() => document.visibilityState === 'visible' && navigator.onLine && void flush(), POLL_MS);
+    return () => window.clearInterval(again);
+  }, [canSync, outbox.length, flush]);
+  // Offline from the start, then a connection: load the server's copy, then send.
+  useEffect(() => {
+    if (online && copy) void refresh();
+  }, [online, copy, refresh]);
+
   // ---------------------------------------------------------------- one change
 
   const run = useCallback(
@@ -274,6 +378,8 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
       retry?: () => void;
       /** The form that made this change shows the outcome itself (no alert banner). */
       quiet?: boolean;
+      /** For a list tick or a new item: if the connection fails, keep it for later instead. */
+      offline?: () => void;
     }): Promise<Outcome<T>> => {
       const key = ++seq.current;
       setOps((x) => [...x, { key, ids: o.ids, apply: o.apply }]);
@@ -289,6 +395,10 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         if (!o.quiet) setBanner(null);
         return { ok: true, value: (o.value ? o.value(c) : undefined) as T };
       } catch (e) {
+        if (o.offline && e instanceof SaveError && e.status === 0) {
+          o.offline();
+          return { ok: true, value: undefined as T };
+        }
         return { ok: false, message: failed(e, o) };
       } finally {
         setOps((x) => x.filter((op) => op.key !== key));
@@ -348,11 +458,14 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         });
       return go();
     };
-    const update = (label: string, id: string, data: Record<string, unknown>, quiet = false) => {
+    const update = (label: string, id: string, data: Record<string, unknown>, quiet = false, offline?: () => void) => {
       const go = (): Promise<Outcome> =>
-        run({ label, ids: [id], quiet, apply: (r) => patchData(r, id, data, meRef.current), send: () => backend.update(id, ver(id), data), retry: () => void go() });
+        run({ label, ids: [id], quiet, offline, apply: (r) => patchData(r, id, data, meRef.current), send: () => backend.update(id, ver(id), data), retry: () => void go() });
       return go();
     };
+    /** No connection (or only the copy on this phone): list changes wait in the outbox. */
+    const offlineNow = () => !navigator.onLine || copyRef.current;
+    const later = (fn: (b: OutboxEntry[]) => OutboxEntry[]) => setOutbox((b) => fn(b));
     const restoreIds = (ids: string[], label: string) => run<void>({ label, ids, send: () => backend.restore(ids) });
 
     const listRows = (listId: string) => Object.values(rowsRef.current).filter((r) => r.kind === 'item' && r.parentId === listId);
@@ -366,10 +479,32 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         const recent = listRows(listId)
           .filter((r) => r.data.checked === true && (r.data.name as string).trim().toLowerCase() === key)
           .sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0];
+        const position = nextPosition(listId);
         if (recent) {
-          return (await update(`“${recent.data.name as string}” wasn’t put back`, recent.id, { ...recent.data, checked: false, position: nextPosition(listId) })).ok;
+          const back = () => later((box) => queueToggle(box, recent.id, false, position, nowIso()));
+          if (offlineNow()) {
+            back();
+            return true;
+          }
+          return (await update(`“${recent.data.name as string}” wasn’t put back`, recent.id, { ...recent.data, checked: false, position }, false, back)).ok;
         }
-        return (await create(`“${n}” wasn’t added`, 'item', newRowId('i'), { name: n, qty, note, checked: false, position: nextPosition(listId) }, { parentId: listId })).ok;
+        const id = newRowId('i');
+        const data = { name: n, qty, note, checked: false, position };
+        const keep = () => later((box) => queueAdd(box, id, listId, { name: n, qty, note, position }, nowIso(), meRef.current));
+        if (offlineNow()) {
+          keep();
+          return true;
+        }
+        const go = (): Promise<Outcome<unknown>> =>
+          run({
+            label: `“${n}” wasn’t added`,
+            ids: [id],
+            offline: keep,
+            apply: (r) => ({ ...r, [id]: draft('item', id, data, listId) }),
+            send: () => backend.create('item', id, data, listId),
+            retry: () => void go(),
+          });
+        return (await go()).ok;
       },
 
       async toggleItem(listId, itemId) {
@@ -377,8 +512,10 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         if (!it) return false;
         const was = it.data.checked === true;
         const name = it.data.name as string;
-        const data = was ? { ...it.data, checked: false, position: nextPosition(listId) } : { ...it.data, checked: true };
-        const r = await update(`“${name}” wasn’t ${was ? 'put back' : 'checked off'}`, itemId, data);
+        const position = was ? nextPosition(listId) : undefined;
+        const data = was ? { ...it.data, checked: false, position } : { ...it.data, checked: true };
+        const keep = () => later((box) => queueToggle(box, itemId, !was, position, nowIso()));
+        const r = offlineNow() ? (keep(), { ok: true as const, value: undefined }) : await update(`“${name}” wasn’t ${was ? 'put back' : 'checked off'}`, itemId, data, false, keep);
         if (r.ok) toast(was ? `“${name}” put back.` : `Checked off “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
         return r.ok;
       },
@@ -764,8 +901,8 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
   }, [backend, failNext, refresh]);
 
   const value = useMemo<Store>(
-    () => ({ state, me, today, saving: pending > 0, status, session, banner, dismissBanner: () => setBanner(null), refresh, backend, actions, demo }),
-    [state, me, today, pending, status, session, banner, refresh, backend, actions, demo],
+    () => ({ state, me, today, saving: pending > 0, status, session, banner, dismissBanner: () => setBanner(null), refresh, backend, actions, offline: { copy, waiting: outbox.length }, demo }),
+    [state, me, today, pending, status, session, banner, refresh, backend, actions, copy, outbox.length, demo],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
