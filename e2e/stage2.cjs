@@ -296,6 +296,22 @@ function startPreview() {
     await Z.page.locator('.wed-home').waitFor({ timeout: 20000 });
     ok((await Z.page.locator('.wed-home').innerText()).includes('Placeholder Hall'), 'Zul sees it on Home');
   });
+  await check('our story: Jeffrey adds a moment with a photo; Zul sees the photo', async () => {
+    await go(J.page, '/story');
+    await J.page.getByRole('button', { name: 'Add a moment' }).first().click();
+    const d = J.page.getByRole('dialog');
+    await d.getByLabel(/^The moment/).fill('First test moment');
+    await d.getByLabel(/^When/).fill('2026-10-01');
+    await d.getByRole('button', { name: 'Add moment' }).click();
+    await d.waitFor({ state: 'detached', timeout: 5000 });
+    await J.page.locator('.moment input[type=file]').first().setInputFiles(resolve(__dirname, '..', 'src', 'assets', 'art', 'us-600.webp'));
+    await J.page.locator('.moment-photo img').first().waitFor({ timeout: 10000 });
+    await go(Z.page, '/story');
+    await Z.page.locator('.moment-photo img').first().waitFor({ timeout: 20000 });
+    await Z.page.waitForFunction(() => { const i = document.querySelector('.moment-photo img'); return i && i.complete && i.naturalWidth > 0; }, null, { timeout: 10000 });
+    const src = await Z.page.locator('.moment-photo img').first().getAttribute('src');
+    ok(/^\/api\/photos\/ph-[0-9a-f]{20}$/.test(src), 'served by the Worker: ' + src);
+  });
   await check('sign out: ends the session and returns to sign-in', async () => {
     await go(J.page, '/settings');
     await J.page.getByRole('button', { name: 'Sign out' }).click();

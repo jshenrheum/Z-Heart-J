@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  MEMBERS, type Assignee, type Audit, type BudgetItem, type EventRepeat, type Guest, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type Vendor, type WorkLocation, type Contact, type Credential,
+  MEMBERS, type Assignee, type Audit, type BudgetItem, type EventRepeat, type Guest, type PhotoRef, type HomeField, type HomeTemplate, type Household, type MemberId, type PinTarget, type Plan, type Profile, type Vendor, type WorkLocation, type Contact, type Credential,
 } from './types.ts';
 import { ConflictError, SaveError, SessionError, type Backend } from './backend.ts';
 import { displayDate, todayIn, type DateStr } from '../lib/dates.ts';
 import { useFeedback } from '../lib/feedback.tsx';
 import { resolvePin } from '../lib/pins.ts';
-import { MAX_PINS, newRowId, toHousehold, WEDDING_ID, type Change, type Kind, type Row } from '../lib/records.ts';
+import { MAX_PHOTOS, MAX_PINS, newRowId, toHousehold, WEDDING_ID, type Change, type Kind, type Row } from '../lib/records.ts';
+import { preparePhoto } from '../lib/photos.ts';
 import type { Recurrence } from '../lib/recurrence.ts';
 
 /**
@@ -73,6 +74,7 @@ export interface WeddingInput {
   schedule: string;
   notes: string;
 }
+export type MomentInput = { title: string; date: DateStr; place: string; story: string };
 export type VendorInput = Omit<Vendor, 'id' | keyof Audit>;
 export type GuestInput = Omit<Guest, 'id' | keyof Audit>;
 export type BudgetInput = Omit<BudgetItem, 'id' | keyof Audit>;
@@ -108,6 +110,11 @@ export interface Actions {
   addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<Outcome<string>>;
   saveEvent: (id: string | null, v: EventInput) => Promise<Outcome<string>>;
   saveWedding: (v: WeddingInput) => Promise<Outcome>;
+  saveMoment: (id: string | null, v: MomentInput) => Promise<Outcome<string>>;
+  /** Shrinks each photo on the device, uploads it, then adds it to the moment. Returns how many were added. */
+  addPhotos: (momentId: string, files: File[]) => Promise<number>;
+  /** Takes a photo out of a moment, with Undo. */
+  removePhoto: (momentId: string, photoId: string) => Promise<boolean>;
   saveVendor: (id: string | null, v: VendorInput) => Promise<Outcome<string>>;
   saveGuest: (id: string | null, v: GuestInput) => Promise<Outcome<string>>;
   /** A one-tap RSVP change, with Undo. */
@@ -145,7 +152,7 @@ const Ctx = createContext<Store | null>(null);
 
 const POLL_MS = 15_000;
 const nowIso = () => new Date().toISOString();
-const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
+const EMPTY: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], moments: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
 
 function index(rows: Row[]): Rows {
   const out: Rows = {};
@@ -555,6 +562,74 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         if (row(WEDDING_ID)) return update('the wedding details weren’t saved', WEDDING_ID, data, true);
         const r = await create('the wedding details weren’t saved', 'wedding', WEDDING_ID, data, { quiet: true });
         return r.ok ? { ok: true, value: undefined } : r;
+      },
+
+      async saveMoment(id, v) {
+        const existing = id ? row(id) : undefined;
+        const data = { title: v.title.trim(), date: v.date, place: v.place.trim(), story: v.story.trim(), photos: (existing?.data.photos as PhotoRef[] | undefined) ?? [] };
+        if (id) {
+          const r = await update(`“${data.title}” wasn’t saved`, id, data, true);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('m');
+        return create(`“${data.title}” wasn’t saved`, 'moment', nid, data, { quiet: true, value: () => nid });
+      },
+
+      async addPhotos(momentId, files) {
+        const added: PhotoRef[] = [];
+        const failed: string[] = [];
+        for (const file of files) {
+          const room = MAX_PHOTOS - ((row(momentId)?.data.photos as PhotoRef[] | undefined)?.length ?? 0) - added.length;
+          if (room <= 0) {
+            failed.push(`A moment keeps up to ${MAX_PHOTOS} photos.`);
+            break;
+          }
+          try {
+            const p = await preparePhoto(file);
+            added.push(await backend.uploadPhoto(p.blob, p.w, p.h));
+          } catch (e) {
+            if (e instanceof SessionError) {
+              setSession({ kind: e.kind, message: e.message });
+              return 0;
+            }
+            failed.push(e instanceof Error ? e.message : 'A photo wasn’t saved.');
+          }
+        }
+        let n = 0;
+        if (added.length) {
+          const cur = row(momentId);
+          if (cur) {
+            const r = await update('the photos weren’t added', momentId, { ...cur.data, photos: [...((cur.data.photos as PhotoRef[]) ?? []), ...added] });
+            if (r.ok) n = added.length;
+          }
+        }
+        if (failed.length) toast(failed[0]!, { tone: 'error' });
+        else if (n) toast(n === 1 ? 'Photo added.' : `${n} photos added.`);
+        return n;
+      },
+
+      async removePhoto(momentId, photoId) {
+        const cur = row(momentId);
+        if (!cur) return false;
+        const before = (cur.data.photos as PhotoRef[]) ?? [];
+        const at = before.findIndex((p) => p.id === photoId);
+        if (at < 0) return false;
+        const r = await update('the photo wasn’t removed', momentId, { ...cur.data, photos: before.filter((p) => p.id !== photoId) });
+        if (r.ok) {
+          toast('Photo removed.', {
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                const now = row(momentId);
+                if (!now) return;
+                const list = [...((now.data.photos as PhotoRef[]) ?? [])];
+                list.splice(Math.min(at, list.length), 0, before[at]!);
+                void update('the photo wasn’t put back', momentId, { ...now.data, photos: list });
+              },
+            },
+          });
+        }
+        return r.ok;
       },
 
       async saveVendor(id, v) {

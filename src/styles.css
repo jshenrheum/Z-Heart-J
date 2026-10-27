@@ -608,9 +608,9 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .fold-action { display: flex; justify-content: flex-end; }
 
 /* ------------------------------------------------------------------ wedding
-   The Wedding tab takes a deep magenta hue while it is open (data-theme on <html>,
-   set by the page). The frame (header, tab bar) stays black. */
-:root[data-theme="wedding"] {
+   Our story and its Wedding folder take a deep magenta hue while open (data-theme
+   on <html>, set by the page). The frame (header, tab bar) stays black. */
+:root[data-theme="story"] {
   --bg: #1A0912;
   --bg-elev: #220E19;
   --surface: #2A1220;
@@ -628,9 +628,9 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .wed-art { margin: 0; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 48px -24px rgba(0, 0, 0, 0.8); background: var(--surface); }
 .wed-art img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
 @media (min-width: 900px) { .wed-art { max-width: 520px; } }
-:root[data-theme="wedding"] body { background: radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%), var(--bg); }
-:root[data-theme="wedding"] .wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
-:root[data-theme="wedding"] .chip-good { background: #173024; border-color: #27503A; }
+:root[data-theme="story"] body { background: radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%), var(--bg); }
+:root[data-theme="story"] .wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
+:root[data-theme="story"] .chip-good { background: #173024; border-color: #27503A; }
 
 
 .wed-hero {
@@ -686,6 +686,57 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
   .nav-item { padding: 6px 0; font-size: 0.625rem; letter-spacing: 0; }
   .wed-hero-count { font-size: 2.5rem; }
 }
+
+/* ------------------------------------------------------------------ our story */
+.folder {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 16px 12px 12px;
+  text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); transition: border-color var(--t), background var(--t);
+}
+.folder:hover { background: var(--surface-2); }
+.folder-art { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); }
+.folder-main { display: grid; gap: 2px; min-width: 0; }
+.folder-title { font-size: 1.0625rem; font-weight: 560; letter-spacing: -0.014em; }
+.folder-sub { font-size: 0.8125rem; color: var(--muted); }
+.folder .card-chev { color: var(--faint); }
+.timeline { list-style: none; display: grid; gap: 22px; }
+.timeline-year { display: grid; gap: 12px; }
+.timeline-year-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; color: var(--heart); }
+.timeline-items { list-style: none; display: grid; gap: 16px; position: relative; padding-left: 20px; }
+.timeline-items::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 1px; background: linear-gradient(var(--line), transparent); }
+.moment { position: relative; }
+.moment-dot { position: absolute; left: -20px; top: 18px; width: 11px; height: 11px; border-radius: 50%; background: var(--heart); box-shadow: 0 0 0 4px var(--bg); }
+.moment-card { overflow: hidden; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); }
+.moment-photos { display: grid; gap: 2px; }
+.moment-photos.has-more { grid-template-rows: auto auto; }
+.moment-photo { position: relative; display: block; padding: 0; border: 0; background: var(--surface-2); cursor: zoom-in; -webkit-tap-highlight-color: transparent; }
+.moment-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.moment-photo-main img { aspect-ratio: 4 / 3; max-height: 460px; }
+.moment-thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+.moment-thumbs .moment-photo img { aspect-ratio: 1; }
+.moment-thumbs.n-1 { grid-template-columns: 1fr; }
+.moment-thumbs.n-1 .moment-photo img { aspect-ratio: 16 / 9; }
+.moment-thumbs.n-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.moment-thumbs.n-2 .moment-photo img { aspect-ratio: 4 / 3; }
+.moment-more { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.25rem; font-weight: 560; color: #fff; background: rgba(0, 0, 0, 0.45); }
+.moment-photo:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+.moment-body { display: grid; gap: 6px; padding: 14px 16px 12px; }
+.moment-date { font-size: 0.8125rem; color: var(--muted); }
+.moment-title { font-size: 1.125rem; line-height: 1.3; font-weight: 560; letter-spacing: -0.016em; }
+.moment-story { color: var(--text-2); white-space: pre-line; }
+.moment-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+label.btn { cursor: pointer; }
+label.btn.is-disabled { opacity: 0.55; pointer-events: none; }
+input.sr-only:focus-visible + label.btn { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viewer { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto minmax(0, 1fr); background: rgba(5, 3, 5, 0.96); animation: fade 160ms ease-out; }
+.viewer-bar { display: flex; align-items: center; gap: 8px; padding: calc(var(--safe-top) + 8px) 12px 8px 16px; color: var(--text-2); }
+.viewer-count { flex: 1; min-width: 0; font-size: 0.9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.viewer-close { color: var(--text); }
+.viewer-img { width: 100%; height: 100%; object-fit: contain; padding: 0 0 calc(var(--safe-bottom) + 12px); }
+.viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 48px; height: 48px; border: 0; border-radius: 50%; color: #fff; background: rgba(0, 0, 0, 0.4); cursor: pointer; }
+.viewer-prev { left: 10px; }
+.viewer-next { right: 10px; }
+.viewer-nav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ------------------------------------------------------------------ opening (Intro.tsx)
    The mark fades in out of a soft blur, the swash draws, the heart beats twice,

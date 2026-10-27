@@ -29,6 +29,7 @@ export type FormRequest =
   | { kind: 'item'; listId: string; itemId: string }
   | { kind: 'event'; id?: string; date?: string }
   | { kind: 'wedding' }
+  | { kind: 'moment'; id?: string }
   | { kind: 'vendor'; id?: string }
   | { kind: 'guest'; id?: string }
   | { kind: 'budget'; id?: string };
@@ -64,6 +65,7 @@ export function FormsProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'item' && <ItemForm listId={req.listId} itemId={req.itemId} onClose={close} />}
       {req?.kind === 'event' && <EventForm id={req.id} date={req.date} onClose={close} />}
       {req?.kind === 'wedding' && <WeddingForm onClose={close} />}
+      {req?.kind === 'moment' && <MomentForm id={req.id} onClose={close} />}
       {req?.kind === 'vendor' && <VendorForm id={req.id} onClose={close} />}
       {req?.kind === 'guest' && <GuestForm id={req.id} onClose={close} />}
       {req?.kind === 'budget' && <BudgetForm id={req.id} onClose={close} />}
@@ -731,6 +733,39 @@ function BudgetForm({ id, onClose }: { id?: string; onClose: () => void }) {
       onSubmit={async (v) => {
         const r = await actions.saveBudgetItem(existing?.id ?? null, { title: v.title ?? '', category: v.category ?? '', planned: parseMoney(v.planned ?? '') ?? 0, paid: parseMoney(v.paid ?? '') ?? 0, notes: v.notes ?? '' });
         if (r.ok) toast(existing ? 'Budget line saved.' : 'Budget line added.');
+        return done(r);
+      }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ our story
+
+function MomentForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const existing = id ? state.moments.find((m) => m.id === id) : undefined;
+  const fields: FieldDef[] = [
+    { name: 'title', label: 'The moment', required: true, maxLength: 120, placeholder: 'e.g. The day we met' },
+    { name: 'date', label: 'When', type: 'date', required: true },
+    { name: 'place', label: 'Where', maxLength: 120 },
+    { name: 'story', label: 'The story', type: 'textarea', maxLength: 4000, placeholder: 'A few words to remember it by.' },
+  ];
+  return (
+    <FormSheet
+      title={existing ? `Edit ${existing.title}` : 'Add a moment'}
+      fields={fields}
+      initial={existing ? { title: existing.title, date: existing.date, place: existing.place, story: existing.story } : { title: '', date: '', place: '', story: '' }}
+      submitLabel={existing ? 'Save changes' : 'Add moment'}
+      note={existing ? SHARED : `${SHARED} Add photos once it’s saved.`}
+      onClose={onClose}
+      extraAction={existing && <TrashButton id={existing.id} what={`“${existing.title}”`} after={routes.story} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const r = await actions.saveMoment(existing?.id ?? null, { title: v.title ?? '', date: v.date ?? '', place: v.place ?? '', story: v.story ?? '' });
+        if (r.ok) {
+          toast(existing ? 'Moment saved.' : 'Moment added.');
+          if (!existing) navigate(routes.story, { state: { focusMoment: r.value }, keepScroll: true });
+        }
         return done(r);
       }}
     />

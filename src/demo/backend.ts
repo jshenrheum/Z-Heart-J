@@ -4,6 +4,7 @@ import { completeTask, reopenTask } from '../lib/tasks.ts';
 import type { MemberId, Task } from '../data/types.ts';
 import { ConflictError, SaveError, type Backend } from '../data/backend.ts';
 import { makeDemoRows } from './data.ts';
+import { DEMO_PHOTOS } from './photos.ts';
 
 /**
  * DEMO ONLY. An in-memory stand-in for the Worker, following the same rules
@@ -29,6 +30,12 @@ const LATENCY_MS = 140;
 
 export function createDemoBackend(): DemoBackend {
   const store = new Map<string, Entry>(makeDemoRows(todayIn()).map((row) => [row.id, { row }]));
+  // Photos live only in this tab's memory (object URLs), like everything else in the demo.
+  const photos = new Map<string, string>(Object.entries(DEMO_PHOTOS));
+  const checkPhotos = (kind: Kind, data: Record<string, unknown>) => {
+    if (kind !== 'moment') return;
+    for (const p of (data.photos as Array<{ id: string }> | undefined) ?? []) if (!photos.has(p.id)) throw new SaveError('A photo in this moment wasn’t uploaded.', 400);
+  };
   let rev = 1;
 
   const self: DemoBackend = {
@@ -47,6 +54,7 @@ export function createDemoBackend(): DemoBackend {
       if (!CREATABLE.includes(kind)) throw new SaveError('That can’t be created here.', 400);
       const clean = validate(kind, data);
       if (kind === 'wedding' && id !== WEDDING_ID) throw new SaveError('There is one wedding record, and its id is “wedding”.', 400);
+      checkPhotos(kind, clean);
       const prev = store.get(id);
       if (prev) {
         if (!prev.deletedAt && canonical(prev.row.data) === canonical(clean)) return change([prev.row]);
@@ -61,6 +69,7 @@ export function createDemoBackend(): DemoBackend {
       await pause();
       const e = liveEntry(id);
       let clean = validate(e.row.kind, data);
+      checkPhotos(e.row.kind, clean);
       const prev = e.row.data;
       if (e.row.kind === 'task') clean = validate('task', { ...clean, seriesId: prev.seriesId, status: prev.status, completedOn: prev.completedOn, createdFrom: prev.createdFrom });
       if (e.row.kind === 'location' || e.row.kind === 'credential') clean.owner = prev.owner;
@@ -163,6 +172,15 @@ export function createDemoBackend(): DemoBackend {
         : stamp({ id, kind: 'pins', version: 1, data, createdBy: self.me, createdAt: now(), updatedBy: self.me, updatedAt: now() });
       return change([put(row)]);
     },
+
+    async uploadPhoto(blob, w, h) {
+      await pause();
+      const id = newRowId('ph');
+      photos.set(id, URL.createObjectURL(blob));
+      return { id, w, h };
+    },
+
+    photoUrl: (id) => photos.get(id) ?? '',
 
     async trash() {
       await pause(false);

@@ -2,6 +2,7 @@ import { addDays, addMonthsClamped, type DateStr } from '../lib/dates.ts';
 import type { Kind, Row } from '../lib/records.ts';
 import type { MemberId } from '../data/types.ts';
 
+
 /**
  * DEMO CONTENT ONLY — included in the demo build (`npm run build:demo`) and never in
  * the production build. Everything below is an unmistakable placeholder: reserved
@@ -147,6 +148,9 @@ export function makeDemoRows(today: DateStr): Row[] {
     row('event', 'ev-away', 'jeffrey', 4, { title: 'Weekend away (demo)', whose: 'both', date: addDays(today, 12), endDate: addDays(today, 14), location: 'Demo Lake Cabin', notes: '', skips: [] }),
     row('event', 'ev-anniversary', 'zul', 40, { title: 'Anniversary (demo)', whose: 'both', date: addMonthsClamped(addDays(today, 20), -12), location: '', notes: '', repeat: { every: 1, unit: 'year' }, skips: [] }),
 
+    row('moment', 'm-met', 'zul', 30, { title: 'The day we met (demo)', date: addDays(today, -1300), place: 'Placeholder Café', story: 'A placeholder story: coffee that turned into dinner.', photos: [{ id: 'ph-demo-sunset', w: 1600, h: 1200 }] }),
+    row('moment', 'm-trip', 'jeffrey', 20, { title: 'First trip together (demo)', date: addDays(today, -900), place: 'Example Coast', story: '', photos: [{ id: 'ph-demo-sea', w: 1200, h: 1600 }, { id: 'ph-demo-garden', w: 1600, h: 1067 }] }),
+    row('moment', 'm-yes', 'zul', 10, { title: 'She said yes (demo)', date: addDays(today, -120), place: 'Demo Gardens', story: 'Placeholder words for the best day.', photos: [] }),
     row('wedding', 'wedding', 'zul', 3, { date: addDays(today, 200), time: '16:00', venue: 'Placeholder Hall', address: '100 Example Avenue\nDemoville, ST 00000', budget: 25000, schedule: '3:00 PM Guests arrive\n4:00 PM Ceremony\n5:00 PM Cocktails\n6:30 PM Dinner\n8:00 PM Dancing', notes: 'Demo wedding — every detail here is a placeholder.' }),
     row('plan', 'plan-wedding', 'zul', 4, { title: 'Wedding checklist', description: 'Everything to do before the day.', target: addDays(today, 200), template: 'wedding', status: 'active' }),
     task('tw1', 'zul', { planId: 'plan-wedding', title: 'Send invitations (demo)', assignee: 'both', due: addDays(today, 30) }),

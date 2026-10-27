@@ -179,6 +179,25 @@ export interface EventRepeat {
 
 export type PinTarget = { kind: 'profile' | 'record' | 'list' | 'plan' | 'contact'; id: string };
 
+// ------------------------------------------------------------------ our story
+
+/** A photo kept on the server (never public); `w` × `h` in pixels. */
+export interface PhotoRef {
+  id: string;
+  w: number;
+  h: number;
+}
+
+/** A moment in Our story: a day worth keeping, with its photos. */
+export interface Moment extends Audit {
+  id: string;
+  title: string;
+  date: DateStr;
+  place: string;
+  story: string;
+  photos: PhotoRef[];
+}
+
 // ------------------------------------------------------------------ wedding
 
 /** The one wedding record (id "wedding"): the date and the day's details. */
@@ -249,6 +268,7 @@ export interface Household {
   plans: Plan[];
   tasks: Task[];
   events: CalendarEvent[];
+  moments: Moment[];
   wedding?: WeddingDetails;
   vendors: Vendor[];
   guests: Guest[];

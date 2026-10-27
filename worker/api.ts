@@ -1,7 +1,7 @@
 import type { MemberId, Task } from '../src/data/types.ts';
 import { HOUSEHOLD_TZ, todayIn } from '../src/lib/dates.ts';
 import {
-  canonical, CREATABLE, CREDENTIAL_SLOT, DELETABLE, ID_RE, InvalidData, newRowId, PROTECTED_MAX, rowTitle, toHousehold, TRASH_DAYS, validateData, WEDDING_ID,
+  canonical, CREATABLE, CREDENTIAL_SLOT, DELETABLE, ID_RE, InvalidData, MAX_PHOTO_BYTES, newRowId, PHOTO_TYPES, PROTECTED_MAX, rowTitle, toHousehold, TRASH_DAYS, validateData, WEDDING_ID,
   type Change, type Kind, type Row, type TrashEntry,
 } from '../src/lib/records.ts';
 import { completeTask } from '../src/lib/tasks.ts';
@@ -166,6 +166,59 @@ async function exportData(ctx: Ctx): Promise<Response> {
   });
 }
 
+// ------------------------------------------------------------------ photos (Our story)
+
+/** Every photo a moment lists must be one of this household's uploads. */
+async function requirePhotos(ctx: Ctx, data: Record<string, unknown>) {
+  const ids = ((data.photos as Array<{ id: string }> | undefined) ?? []).map((p) => p.id);
+  if (ids.length === 0) return;
+  const { results } = await ctx.db
+    .prepare(`SELECT id FROM photos WHERE household_id = ? AND id IN (${ids.map(() => '?').join(',')})`)
+    .bind(ctx.hh, ...ids)
+    .all<{ id: string }>();
+  if (results.length !== ids.length) throw new ApiError(400, 'invalid', 'A photo in this moment wasn’t uploaded.', { field: 'photos' });
+}
+
+/** The file's own first bytes must say what its type says. */
+function looksLike(mime: string, b: Uint8Array): boolean {
+  if (mime === 'image/jpeg') return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (mime === 'image/png') return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+  return ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP';
+}
+
+async function uploadPhoto(ctx: Ctx): Promise<Response> {
+  const mime = (ctx.req.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+  if (!(PHOTO_TYPES as readonly string[]).includes(mime)) throw new ApiError(415, 'unsupported_media_type', 'Photos must be JPEG, WebP or PNG.');
+  const dim = (k: string) => {
+    const n = Number(ctx.url.searchParams.get(k));
+    if (!Number.isInteger(n) || n < 1 || n > 20000) throw new ApiError(400, 'invalid', 'The photo’s size is missing.', { field: k });
+    return n;
+  };
+  const w = dim('w');
+  const h = dim('h');
+  const declared = Number(ctx.req.headers.get('content-length') ?? '0');
+  if (declared > MAX_PHOTO_BYTES) throw new ApiError(413, 'too_large', 'That photo is too large.');
+  const bytes = new Uint8Array(await ctx.req.arrayBuffer());
+  if (bytes.byteLength === 0) throw new ApiError(400, 'invalid', 'That photo is empty.');
+  if (bytes.byteLength > MAX_PHOTO_BYTES) throw new ApiError(413, 'too_large', 'That photo is too large.');
+  if (!looksLike(mime, bytes)) throw new ApiError(415, 'unsupported_media_type', 'That file isn’t the kind of photo it says it is.');
+  const id = newRowId('ph');
+  await ctx.db
+    .prepare('INSERT INTO photos (household_id, id, mime, width, height, size, bytes, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(ctx.hh, id, mime, w, h, bytes.byteLength, bytes, ctx.me, nowIso())
+    .run();
+  return json(201, { id, w, h });
+}
+
+async function getPhoto(ctx: Ctx, id: string): Promise<Response> {
+  const row = await ctx.db.prepare('SELECT mime, bytes FROM photos WHERE household_id = ? AND id = ?').bind(ctx.hh, id).first<{ mime: string; bytes: ArrayBuffer | number[] }>();
+  if (!row) throw new ApiError(404, 'not_found', 'That photo isn’t here.');
+  const body = row.bytes instanceof ArrayBuffer ? row.bytes : new Uint8Array(row.bytes).buffer;
+  // A photo never changes under its id; the browser may keep it (privately, on this device).
+  return new Response(body, { status: 200, headers: { 'content-type': row.mime, 'cache-control': 'private, max-age=31536000, immutable', 'content-disposition': 'inline' } });
+}
+
 // ------------------------------------------------------------------ record writes
 
 async function create(ctx: Ctx): Promise<Response> {
@@ -176,6 +229,7 @@ async function create(ctx: Ctx): Promise<Response> {
   if (typeof id !== 'string' || !ID_RE.test(id)) throw new ApiError(400, 'invalid', 'Not a valid id.', { field: 'id' });
   const data = validate(kind, body.data);
   if (kind === 'wedding' && id !== WEDDING_ID) throw new ApiError(400, 'invalid', 'There is one wedding record, and its id is “wedding”.', { field: 'id' });
+  if (kind === 'moment') await requirePhotos(ctx, data);
 
   let parent: string | undefined;
   if (kind === 'item') {
@@ -228,6 +282,7 @@ async function update(ctx: Ctx, id: string): Promise<Response> {
     await requireLiveParent(ctx, data.planId as string | undefined, 'plan', 'plan');
   }
   if (row.kind === 'location' || row.kind === 'credential') data.owner = prev.owner;
+  if (row.kind === 'moment') await requirePhotos(ctx, data);
 
   if (row.version !== version) {
     // Already applied (a retry after a lost answer)? Then it isn't a conflict.
@@ -555,6 +610,8 @@ const ROUTES: Array<[string, RegExp, Handler]> = [
   ['POST', /^\/api\/protected\/([^/]+)\/([^/]+)\/reveal$/, reveal],
   ['GET', /^\/api\/trash$/, getTrash],
   ['GET', /^\/api\/export$/, exportData],
+  ['POST', /^\/api\/photos$/, uploadPhoto],
+  ['GET', /^\/api\/photos\/([^/]+)$/, getPhoto],
 ];
 
 export async function routeApi(req: Request, env: Env, url: URL, me: MemberId): Promise<Response> {

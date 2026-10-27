@@ -71,7 +71,7 @@ test('validation: amounts are kept to cents and bounded; a deposit date only whi
 
 test('the wedding day and deposits due show on the calendar', () => {
   const h: Household = {
-    profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] },
+    profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], moments: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] },
     wedding: { id: 'wedding', date: '2027-05-01', time: '16:00', venue: 'Placeholder Hall\nSecond line', address: '', schedule: '', notes: '', ...audit },
     vendors: [{ id: 'v1', name: 'Caterer Co', category: 'Caterer', contact: '', phone: '', email: '', website: '', status: 'booked', deposit: 'due', depositDue: '2027-04-20', notes: '', ...audit }],
   };

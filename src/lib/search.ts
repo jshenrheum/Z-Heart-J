@@ -10,7 +10,7 @@ import { routes } from './routes.ts';
  * their label. There is no search history and no network call.
  */
 
-export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'vendor' | 'guest' | 'budget';
+export type DocKind = 'profile' | 'location' | 'field' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'vendor' | 'guest' | 'budget' | 'moment';
 
 export interface SearchDoc {
   id: string;
@@ -148,6 +148,9 @@ export function buildIndex(h: Household, today: DateStr): SearchDoc[] {
       aliases: ['event', 'calendar', 'appointment'], text: `${e.location} ${e.notes}`,
       value: e.location || undefined, fieldKind: e.location ? 'address' : undefined,
     });
+  }
+  for (const m of h.moments) {
+    add({ id: m.id, kind: 'moment', title: m.title, context: `Our story · ${displayDate(m.date, today)}${m.place ? ` · ${m.place}` : ''}`, route: routes.story, aliases: ['our story', 'moment', 'memory', 'photos'], text: `${m.place} ${m.story}` });
   }
   for (const v of h.vendors) {
     add({

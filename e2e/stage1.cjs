@@ -98,10 +98,14 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       ok((await d.getByLabel(/^Details/).inputValue()).includes('Boil the pasta'), 'method in the details');
       await d.getByRole('button', { name: 'Close without saving' }).click();
     });
-    await check('wedding: the tab takes its magenta hue while open, and gives it back on leaving', async () => {
-      await nav(page, 'Wedding').click();
+    await check('our story: the tab and its Wedding folder take the magenta hue, and give it back on leaving', async () => {
+      await nav(page, 'Our story').click();
+      await page.locator('.timeline').waitFor();
+      eq(await page.evaluate(() => document.documentElement.dataset.theme), 'story', 'theme on');
+      await page.getByRole('link', { name: /^Wedding:/ }).click();
       await page.locator('.wed-hero').waitFor();
-      eq(await page.evaluate(() => document.documentElement.dataset.theme), 'wedding', 'theme on');
+      eq(await page.evaluate(() => document.documentElement.dataset.theme), 'story', 'theme on in the folder');
+      ok(await page.getByRole('link', { name: 'Our story' }).first().isVisible(), 'a way back');
       await nav(page, 'Home').click();
       await page.locator('.greeting').waitFor();
       eq(await page.evaluate(() => document.documentElement.dataset.theme), undefined, 'theme off');
@@ -444,6 +448,54 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- our story
+  {
+    const { ctx, page } = await newPage();
+    const photo = require('node:path').join(__dirname, '..', 'src', 'assets', 'art', 'us-600.webp');
+    await open(page, '/story');
+    await check('our story: the timeline by year, oldest first, with photos, and the Wedding folder on top', async () => {
+      ok(await page.getByRole('link', { name: /^Wedding:/ }).isVisible(), 'wedding folder');
+      const titles = await page.$$eval('.moment-title', (e) => e.map((x) => x.textContent));
+      eq(titles[0], 'The day we met (demo)', 'oldest first');
+      eq(titles.length, 3, 'three moments');
+      await page.waitForFunction(() => [...document.querySelectorAll('.moment-photo img')].every((i) => i.complete && i.naturalWidth > 0));
+      ok((await page.locator('.timeline-year-label').count()) >= 2, 'year headings');
+    });
+    await check('our story: add a moment, then a photo from the phone; it is shrunk to at most 1,600 px', async () => {
+      await page.getByRole('button', { name: 'Add a moment' }).first().click();
+      const d = page.getByRole('dialog');
+      await d.getByLabel(/^The moment/).fill('Test moment');
+      await d.getByLabel(/^When/).fill('2026-10-20');
+      await d.getByLabel(/^Where/).fill('Test place');
+      await d.getByRole('button', { name: 'Add moment' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      const card = page.locator('.moment', { hasText: 'Test moment' });
+      await card.waitFor();
+      await card.locator('input[type=file]').setInputFiles(photo);
+      await card.locator('.moment-photo img').first().waitFor({ timeout: 8000 });
+      await page.waitForFunction(() => { const i = document.querySelector('#' + CSS.escape([...document.querySelectorAll('.moment')].find((m) => m.textContent.includes('Test moment')).id) + ' .moment-photo img'); return i && i.complete && i.naturalWidth > 0; });
+      const w = await card.locator('.moment-photo img').first().evaluate((i) => Math.max(i.naturalWidth, i.naturalHeight));
+      ok(w <= 1600, 'at most 1,600 px: ' + w);
+    });
+    await check('our story: the viewer opens, moves between photos, and Remove has Undo', async () => {
+      const trip = page.locator('.moment', { hasText: 'First trip together' });
+      await trip.getByRole('button', { name: /^Open the photos/ }).click();
+      const v = page.getByRole('dialog');
+      ok((await v.getAttribute('aria-label')).includes('photo 1 of 2'), 'first of two');
+      await page.keyboard.press('ArrowRight');
+      ok((await v.getAttribute('aria-label')).includes('photo 2 of 2'), 'moved');
+      await v.getByRole('button', { name: 'Remove' }).click();
+      await page.waitForTimeout(300);
+      ok((await v.getAttribute('aria-label')).includes('photo 1 of 1'), 'one left');
+      await v.getByRole('button', { name: 'Close' }).click();
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await page.waitForTimeout(300);
+      eq(await trip.locator('.moment-photo').count(), 2, 'both back');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
   // ---------------------------------------------------------------- wedding
   {
     const { ctx, page } = await newPage();
@@ -659,7 +711,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const imgNoAlt = [...document.querySelectorAll('img:not([alt])')].length;
       return { dupes, unnamed, h1, imgNoAlt };
     });
-    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/calendar', '/calendar/e/ev-dinner', '/calendar/e/ev-run', '/wedding', '/wedding?tab=checklist', '/wedding?tab=vendors', '/wedding?tab=budget', '/wedding?tab=guests', '/search', '/no-such-page']) {
+    for (const route of ['/', '/info', '/info/contacts', '/info/r/p-jeffrey', '/info/r/cred-j1', '/info/r/home-hvac', '/info/r/contact-vet', '/lists', '/lists/groceries', '/plans', '/plans/p/plan-home', '/settings', '/settings/trash', '/calendar', '/calendar/e/ev-dinner', '/calendar/e/ev-run', '/story', '/wedding', '/wedding?tab=checklist', '/wedding?tab=vendors', '/wedding?tab=budget', '/wedding?tab=guests', '/search', '/no-such-page']) {
       await check(`a11y structure ${route}: one h1, unique ids, every control named`, async () => {
         await open(page, route);
         const r = await audit();

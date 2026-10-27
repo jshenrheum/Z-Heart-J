@@ -1,4 +1,4 @@
-import type { PinTarget } from './types.ts';
+import type { PhotoRef, PinTarget } from './types.ts';
 import type { Change, Kind, Row, Snapshot, TrashEntry } from '../lib/records.ts';
 import { ConflictError, SaveError, SessionError, type Backend, type ProtectedInfo } from './backend.ts';
 
@@ -45,6 +45,22 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
 
 const enc = encodeURIComponent;
 
+/** A photo goes up as its own bytes, not JSON; the answers and errors are read as for any call. */
+async function sendPhoto(blob: Blob, w: number, h: number): Promise<PhotoRef> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/photos?w=${w}&h=${h}`, { method: 'POST', credentials: 'same-origin', redirect: 'manual', cache: 'no-store', headers: { accept: 'application/json', 'content-type': blob.type }, body: blob });
+  } catch {
+    throw new SaveError(navigator.onLine ? 'Couldn’t reach the server.' : 'You’re offline.', 0, navigator.onLine ? 'network' : 'offline');
+  }
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) throw new SessionError('expired', 'Your sign-in has expired.');
+  if (!(res.headers.get('content-type') ?? '').includes('application/json')) throw new SessionError('expired', 'Your sign-in has expired.');
+  const data = (await res.json()) as PhotoRef & { error?: string; message?: string };
+  if (res.ok) return { id: data.id, w: data.w, h: data.h };
+  if (res.status === 401) throw new SessionError('expired', 'Your sign-in has expired.');
+  throw new SaveError(data.message ?? 'That photo wasn’t saved.', res.status, data.error ?? 'error');
+}
+
 export function createApiBackend(): Backend {
   return {
     mode: 'live',
@@ -63,6 +79,8 @@ export function createApiBackend(): Backend {
     clearChecked: async (listId, items) => (await call<Change>('POST', `/api/lists/${enc(listId)}/clear-checked`, { items })).data,
     setPins: async (targets: PinTarget[]) => (await call<Change>('PUT', '/api/pins', { targets })).data,
     trash: async () => (await call<{ entries: TrashEntry[] }>('GET', '/api/trash')).data.entries,
+    uploadPhoto: sendPhoto,
+    photoUrl: (id) => `/api/photos/${enc(id)}`,
     protectedInfo: async (recordId) => (await call<ProtectedInfo>('GET', `/api/protected/${enc(recordId)}`)).data,
     setProtected: async (recordId, slot, value) => (await call<Change>('PUT', `/api/protected/${enc(recordId)}/${enc(slot)}`, { value })).data,
     clearProtected: async (recordId, slot) => (await call<Change>('DELETE', `/api/protected/${enc(recordId)}/${enc(slot)}`)).data,

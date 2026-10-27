@@ -52,7 +52,7 @@ describe('migration 0003 keeps every existing row and encrypted value exactly', 
     const before = await snap();
     assert.equal(before.protectedValues.length, 2);
 
-    assert.deepEqual(await applyMigrations(w.db), ['0003_wedding.sql']);
+    assert.deepEqual(await applyMigrations(w.db, '0003_wedding.sql'), ['0003_wedding.sql']);
     assert.deepEqual(await snap(), before, 'every row identical, protected values included');
 
     assert.equal((await c.post('/api/protected/cred-a/number/reveal', {})).data.value, 'TEST-VALUE-0003');

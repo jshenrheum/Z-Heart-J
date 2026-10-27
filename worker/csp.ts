@@ -6,7 +6,7 @@ export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self'",
-  "img-src 'self' data:",
+  "img-src 'self' data: blob:", // blob: for a photo being prepared on the device before upload
   "font-src 'self'",
   "connect-src 'self'",
   "manifest-src 'self'",

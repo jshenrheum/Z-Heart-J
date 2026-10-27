@@ -6,6 +6,7 @@ export const routes = {
   lists: '/lists',
   plans: '/plans',
   calendar: '/calendar',
+  story: '/story',
   wedding: '/wedding',
   settings: '/settings',
   trash: '/settings/trash',

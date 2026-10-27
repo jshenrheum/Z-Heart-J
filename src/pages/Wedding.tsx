@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { MEMBERS, type BudgetItem, type Guest, type Vendor } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { displayDate, dueState } from '../lib/dates.ts';
@@ -13,6 +12,7 @@ import { Icon } from '../components/Icon.tsx';
 import { TaskRow } from '../components/Tasks.tsx';
 import { Chip, EmptyState, FilterChips, PageHeader, Section, UpdatedBy } from '../components/ui.tsx';
 import artLarge from '../assets/art/us.webp';
+import { useStoryTheme } from './Story.tsx';
 import artSmall from '../assets/art/us-600.webp';
 
 type Tab = 'overview' | 'checklist' | 'vendors' | 'budget' | 'guests';
@@ -32,13 +32,7 @@ export function WeddingPage() {
   const tab: Tab = TABS.some((t) => t.key === raw) ? (raw as Tab) : 'overview';
   const w = state.wedding;
   const plan = weddingPlan(state);
-  // The page's own hue: set while it's open, gone when it isn't.
-  useEffect(() => {
-    document.documentElement.dataset.theme = 'wedding';
-    return () => {
-      delete document.documentElement.dataset.theme;
-    };
-  }, []);
+  useStoryTheme();
   const tasks = plan ? state.tasks.filter((t) => t.planId === plan.id) : [];
   const open = viewTasks(tasks, 'all');
   const doneTasks = viewTasks(tasks, 'completed');
@@ -57,6 +51,7 @@ export function WeddingPage() {
     <div className="page">
       <PageHeader
         title="Wedding"
+        back={{ to: routes.story, label: 'Our story' }}
         sub={w?.date ? `${displayDate(w.date, today)}${w.time ? ` · ${formatTime(w.time)}` : ''}${w.venue ? ` · ${w.venue.split('\n')[0]}` : ''}` : 'Everything for the day, in one place.'}
         actions={
           <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'wedding' })}>

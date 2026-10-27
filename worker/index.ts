@@ -30,6 +30,8 @@ function withHeaders(res: Response, extra: Record<string, string> = {}): Respons
 }
 
 function cacheFor(path: string, res: Response): Record<string, string> {
+  // A photo is immutable under its id; everything else from /api is never stored.
+  if (path.startsWith('/api/photos/') && res.ok) return { 'cache-control': 'private, max-age=31536000, immutable' };
   if (path.startsWith('/api/')) return { 'cache-control': 'no-store' };
   if (path.startsWith('/assets/') && res.ok) return { 'cache-control': 'public, max-age=31536000, immutable' };
   // The shell, the service worker and the manifest are always revalidated.

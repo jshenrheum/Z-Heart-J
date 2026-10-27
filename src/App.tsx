@@ -18,6 +18,7 @@ import { CalendarPage, EventPage } from './pages/Calendar.tsx';
 import { SettingsPage } from './pages/Settings.tsx';
 import { TrashPage } from './pages/Trash.tsx';
 import { WeddingPage } from './pages/Wedding.tsx';
+import { StoryPage } from './pages/Story.tsx';
 
 function Routes() {
   const { path } = useRoute();
@@ -28,6 +29,7 @@ function Routes() {
   if (path === routes.search) return <SearchPage />;
   if (path === routes.settings) return <SettingsPage />;
   if (path === routes.trash) return <TrashPage />;
+  if (path === routes.story) return <StoryPage />;
   if (path === routes.wedding) return <WeddingPage />;
   if (a === 'info') {
     if (seg.length === 1) return <InfoPage />;

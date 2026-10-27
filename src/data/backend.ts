@@ -1,4 +1,4 @@
-import type { MemberId, PinTarget } from './types.ts';
+import type { MemberId, PhotoRef, PinTarget } from './types.ts';
 import type { Change, Kind, Row, Snapshot, TrashEntry } from '../lib/records.ts';
 
 /**
@@ -19,6 +19,9 @@ export interface Backend {
   clearChecked(listId: string, items: Array<{ id: string; version: number }>): Promise<Change>;
   setPins(targets: PinTarget[]): Promise<Change>;
   trash(): Promise<TrashEntry[]>;
+  /** Our story: keeps a prepared photo and returns its id; where to show one from. */
+  uploadPhoto(blob: Blob, w: number, h: number): Promise<PhotoRef>;
+  photoUrl(id: string): string;
   /** Protected values: live only (the demo never stores one). */
   protectedInfo?(recordId: string): Promise<ProtectedInfo>;
   setProtected?(recordId: string, slot: string, value: string): Promise<Change>;

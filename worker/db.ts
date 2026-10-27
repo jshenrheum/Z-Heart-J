@@ -141,6 +141,12 @@ export async function purgeTrash(db: D1Database, hh: string, now = Date.now()): 
       )
       .bind(hh, hh, cutoff),
     db.prepare('DELETE FROM records WHERE household_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?').bind(hh, cutoff),
+    // Photos no moment lists any more (live or in the trash), a day after upload, so an upload still being attached is safe.
+    db
+      .prepare(
+        `DELETE FROM photos WHERE household_id = ? AND created_at < ? AND id NOT IN (SELECT json_extract(j.value, '$.id') FROM records r, json_each(r.data, '$.photos') j WHERE r.household_id = ? AND r.kind = 'moment')`,
+      )
+      .bind(hh, new Date(now - 86_400_000).toISOString(), hh),
   ]);
   return res?.meta.changes ?? 0;
 }

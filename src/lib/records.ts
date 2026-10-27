@@ -1,6 +1,6 @@
 import {
   MEMBER_IDS, type BudgetItem, type CalendarEvent, type Contact, type Credential, type FieldKind, type Guest, type HomeField, type HomeRecord, type HomeTemplate, type Household,
-  type ListItem, type MemberId, type PinTarget, type Plan, type Profile, type SharedList, type Task, type Vendor, type WeddingDetails, type WorkLocation,
+  type ListItem, type MemberId, type Moment, type PinTarget, type Plan, type Profile, type SharedList, type Task, type Vendor, type WeddingDetails, type WorkLocation,
 } from '../data/types.ts';
 import { isDateStr } from './dates.ts';
 import { safeUrl } from './summary.ts';
@@ -17,12 +17,16 @@ import { safeUrl } from './summary.ts';
  * protected field can never carry a value inside ordinary data.
  */
 
-export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'wedding' | 'vendor' | 'guest' | 'budget' | 'pins';
-export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget', 'pins'];
+export type Kind = 'profile' | 'location' | 'credential' | 'home' | 'contact' | 'list' | 'item' | 'plan' | 'task' | 'event' | 'wedding' | 'vendor' | 'guest' | 'budget' | 'moment' | 'pins';
+export const KINDS: Kind[] = ['profile', 'location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget', 'moment', 'pins'];
 /** Kinds a client may create with the generic create call ("wedding" only ever as the one record with id "wedding"). */
-export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget'];
+export const CREATABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'wedding', 'vendor', 'guest', 'budget', 'moment'];
 /** Kinds that can be moved to the trash. */
-export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'vendor', 'guest', 'budget'];
+export const DELETABLE: Kind[] = ['location', 'credential', 'home', 'contact', 'list', 'item', 'plan', 'task', 'event', 'vendor', 'guest', 'budget', 'moment'];
+/** Photos: at most this many per moment, and this many bytes each (after the phone shrinks them). */
+export const MAX_PHOTOS = 24;
+export const MAX_PHOTO_BYTES = 1_500_000;
+export const PHOTO_TYPES = ['image/jpeg', 'image/webp', 'image/png'] as const;
 /** The one wedding record's id. */
 export const WEDDING_ID = 'wedding';
 
@@ -293,6 +297,14 @@ const SPECS: Record<Kind, Rule> = {
     name: text(100, { required: true }), side: oneOf([...MEMBER_IDS, 'both'] as const), party: int(1, 20), rsvp: oneOf(['pending', 'yes', 'no'] as const),
     table: text(20), meal: text(60), notes: text(500, { multiline: true }),
   }),
+  moment: (v, f) => {
+    const m = object({
+      title: text(120, { required: true }), date: requiredDate, place: text(120), story: text(4000, { multiline: true }),
+      photos: array(object({ id, w: int(1, 20000), h: int(1, 20000) }), MAX_PHOTOS),
+    })(v, f) as { photos: Array<{ id: string }> };
+    if (new Set(m.photos.map((p) => p.id)).size !== m.photos.length) throw new InvalidData('photos', 'A photo is in this moment twice');
+    return m;
+  },
   budget: object({ title: text(100, { required: true }), category: text(60), planned: money, paid: money, notes: text(500, { multiline: true }) }),
   pins: object({
     targets: (v, f) => {
@@ -359,6 +371,7 @@ export function rowTitle(row: Row): { title: string; context: string } {
     case 'vendor': return { title: d.name ?? 'Vendor', context: 'Wedding vendor' };
     case 'guest': return { title: d.name ?? 'Guest', context: 'Wedding guest' };
     case 'budget': return { title: d.title ?? 'Budget line', context: 'Wedding budget' };
+    case 'moment': return { title: d.title ?? 'Moment', context: 'Our story' };
     default: return { title: row.id, context: row.kind };
   }
 }
@@ -372,7 +385,7 @@ const audit = (r: Row) => ({ updatedBy: r.updatedBy, updatedAt: r.updatedAt, ver
  * change still in flight. Only rows of the known kinds are used.
  */
 export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = new Set()): Household {
-  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
+  const h: Household = { profiles: [], locations: [], credentials: [], home: [], contacts: [], lists: [], plans: [], tasks: [], events: [], moments: [], vendors: [], guests: [], budget: [], pins: { jeffrey: [], zul: [] } };
   const items = new Map<string, ListItem[]>();
   // Creation order, so cards keep their places as they're edited.
   const ordered = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
@@ -419,6 +432,9 @@ export function toHousehold(rows: Iterable<Row>, saving: ReadonlySet<string> = n
         break;
       case 'wedding':
         if (r.id === WEDDING_ID) h.wedding = { ...(d as Omit<WeddingDetails, 'id'>), id: WEDDING_ID, ...audit(r) };
+        break;
+      case 'moment':
+        h.moments.push({ ...(d as Omit<Moment, 'id'>), photos: (d as { photos?: Moment['photos'] }).photos ?? [], id: r.id, ...audit(r) });
         break;
       case 'vendor':
         h.vendors.push({ ...(d as Omit<Vendor, 'id'>), id: r.id, ...audit(r) });
