@@ -4,7 +4,7 @@ import { Wordmark } from './Wordmark.tsx';
 
 const SEEN = 'zhj:intro';
 /** The mark's entrance and a short breath; the app shows no sooner. */
-const MIN_MS = 1500;
+const MIN_MS = 2000;
 /** Never hold the app longer than this, whether or not it has loaded. */
 const MAX_MS = 3200;
 /** Matches .intro's fade-out in styles.css. */
@@ -21,7 +21,7 @@ const canPlay = () => {
 
 /**
  * The opening: on the black, the Z ♥ J mark fades in, the champagne swash
- * draws between the letters and the heart beats once; then it gives way to the
+ * draws between the letters and the heart beats twice; then it gives way to the
  * app. Once per session (a cold launch of the installed app is a new session),
  * skipped by a tap or any key, and never with reduced motion. It doubles as the
  * loading screen, leaving once the household has loaded (or after a few seconds
