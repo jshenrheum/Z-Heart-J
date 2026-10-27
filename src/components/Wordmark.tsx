@@ -13,13 +13,16 @@ export function Wordmark({ height = 34, className }: { height?: number; classNam
       aria-label="Z heart J"
       focusable="false"
     >
-      <path d={glyphs.swash} fill="none" stroke={glyphs.colors.swash} strokeWidth={glyphs.swashStrokeWidth} strokeLinecap="round" />
-      <g fill="none" stroke={glyphs.colors.letters} strokeWidth={glyphs.letterStrokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      {/* Class names and pathLength are hooks for the opening animation (Intro.tsx); they change nothing at rest. */}
+      <path className="wm-swash" pathLength={1} d={glyphs.swash} fill="none" stroke={glyphs.colors.swash} strokeWidth={glyphs.swashStrokeWidth} strokeLinecap="round" />
+      <g className="wm-letters" fill="none" stroke={glyphs.colors.letters} strokeWidth={glyphs.letterStrokeWidth} strokeLinecap="round" strokeLinejoin="round">
         <path d={glyphs.z} />
         <path d={glyphs.jBar} />
         <path d={glyphs.jStem} />
       </g>
-      <path fill={glyphs.colors.heart} transform={glyphs.heartTransform} d={glyphs.heart} />
+      <g className="wm-heart">
+        <path fill={glyphs.colors.heart} transform={glyphs.heartTransform} d={glyphs.heart} />
+      </g>
     </svg>
   );
 }

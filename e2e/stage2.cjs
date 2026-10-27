@@ -35,6 +35,7 @@ function startPreview() {
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const phone = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'], acceptDownloads: true });
+    await ctx.addInitScript(() => { try { sessionStorage.setItem('zhj:intro', '1'); } catch {} }); // the opening is checked on the demo build
     const page = await ctx.newPage();
     page.errors = [];
     page.on('pageerror', (e) => page.errors.push(e.message));

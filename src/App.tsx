@@ -5,6 +5,7 @@ import { routes } from './lib/routes.ts';
 import type { Backend } from './data/backend.ts';
 import { StoreProvider } from './data/store.tsx';
 import { FormsProvider } from './components/Forms.tsx';
+import { Intro } from './components/Intro.tsx';
 import { AppShell } from './components/Layout.tsx';
 import { HomePage } from './pages/Home.tsx';
 import { ContactsPage, InfoPage } from './pages/Info.tsx';
@@ -72,6 +73,7 @@ export function App({ backend }: { backend: Backend }) {
             <Routes />
           </AppShell>
         </FormsProvider>
+        <Intro />
       </StoreProvider>
     </FeedbackProvider>
   );

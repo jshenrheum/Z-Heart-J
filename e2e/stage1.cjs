@@ -16,9 +16,11 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
 (async () => {
   // CHROMIUM_PATH: optional, for machines whose installed Chromium differs from the playwright package's own.
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-  const newPage = async (opts = {}) => {
+  const newPage = async ({ intro = false, ...opts } = {}) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['clipboard-read', 'clipboard-write'], ...opts });
     await ctx.clock.setFixedTime(new Date('2026-10-25T15:00:00-04:00')); // dates in assertions assume this day
+    // The opening plays once per session; these journeys begin mid-session unless they test it.
+    if (!intro) await ctx.addInitScript(() => { try { sessionStorage.setItem('zhj:intro', '1'); } catch {} });
     const page = await ctx.newPage();
     page.errors = [];
     page.on('pageerror', (e) => page.errors.push(e.message));
@@ -32,6 +34,46 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
   };
   const searchFor = async (page, q) => { const box = page.locator('input[type=search]').first(); await box.fill(q); await page.waitForTimeout(200); };
   const rows = (page) => page.$$eval('.result', (els) => els.map((e) => e.innerText.replace(/\s*\n\s*/g, ' | ')));
+
+  // ---------------------------------------------------------------- opening
+  {
+    const { ctx, page } = await newPage({ intro: true });
+    await check('intro: the mark fades in over a black veil, then gives way to the loaded app', async () => {
+      await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+      ok(await page.locator('.intro .intro-mark svg').isVisible(), 'mark shown');
+      eq(await page.locator('.intro').getAttribute('aria-hidden'), 'true', 'decorative');
+      await page.locator('.intro').waitFor({ state: 'detached', timeout: 4500 });
+      ok(await page.locator('.greeting').isVisible(), 'home page beneath');
+    });
+    await check('intro: once per session (a reload does not replay it)', async () => {
+      await page.reload({ waitUntil: 'networkidle' });
+      eq(await page.locator('.intro').count(), 0, 'no intro on reload');
+    });
+    await check('intro: a tap skips it at once, and the tap does nothing else', async () => {
+      const p2 = await ctx.newPage(); // a new tab is a new session
+      p2.errors = [];
+      p2.on('pageerror', (e) => p2.errors.push(e.message));
+      await p2.goto(BASE + '/lists', { waitUntil: 'domcontentloaded' });
+      await p2.locator('.intro').waitFor({ timeout: 3000 });
+      const box = await p2.locator('.intro').boundingBox();
+      await p2.mouse.click(box.width / 2, box.height / 2);
+      await p2.locator('.intro').waitFor({ state: 'detached', timeout: 1000 });
+      ok(p2.url().endsWith('/lists'), 'still on Lists: the tap reached nothing beneath');
+      ok(p2.errors.length === 0, p2.errors.join('; '));
+      await p2.close();
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+  {
+    const { ctx, page } = await newPage({ intro: true, reducedMotion: 'reduce' });
+    await check('intro: never shown with reduced motion', async () => {
+      await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+      eq(await page.locator('.intro').count(), 0, 'no intro');
+      ok(await page.locator('.greeting').isVisible(), 'home page straight away');
+    });
+    await ctx.close();
+  }
 
   // ---------------------------------------------------------------- search
   {
