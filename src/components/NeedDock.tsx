@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { SharedList } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
-import { itemSub, recentMatches } from '../lib/lists.ts';
+import { itemSub, listWords, recentMatches } from '../lib/lists.ts';
 import { Icon } from './Icon.tsx';
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -19,6 +19,7 @@ export function NeedDock({ list }: { list: SharedList }) {
   const input = useRef<HTMLInputElement>(null);
   const dock = useRef<HTMLDivElement>(null);
   const matches = useMemo(() => recentMatches(list, text), [list, text]);
+  const words = listWords(list.title);
 
   // Toasts rise above the dock while it is on screen.
   useEffect(() => {
@@ -79,8 +80,8 @@ export function NeedDock({ list }: { list: SharedList }) {
     <div className="dock" ref={dock}>
       <div className="dock-inner">
         {matches.length > 0 && (
-          <div className="dock-suggest" role="group" aria-label="Recently used">
-            <p className="dock-suggest-label">Recently used</p>
+          <div className="dock-suggest" role="group" aria-label={words.recent}>
+            <p className="dock-suggest-label">{words.recent}</p>
             <ul className="dock-chips">
               {matches.map((i) => {
                 const sub = itemSub(i);
@@ -119,7 +120,7 @@ export function NeedDock({ list }: { list: SharedList }) {
             ref={input}
             id={`need-${list.id}`}
             className="dock-input"
-            placeholder="I need…"
+            placeholder={words.placeholder}
             value={text}
             maxLength={100}
             autoComplete="off"

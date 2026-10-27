@@ -4,7 +4,7 @@ import { useStore } from '../data/store.tsx';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { NeedDock } from '../components/NeedDock.tsx';
-import { itemSub } from '../lib/lists.ts';
+import { itemSub, listWords } from '../lib/lists.ts';
 import { CardLink, ConfirmDialog, EmptyState, PageHeader, PinButton, UpdatedBy } from '../components/ui.tsx';
 import { routes } from '../lib/routes.ts';
 import { NotFound } from './NotFound.tsx';
@@ -13,6 +13,7 @@ export function ListsPage() {
   const { state, actions } = useStore();
   const forms = useForms();
   const hasGroceries = state.lists.some((l) => /grocer/i.test(l.title));
+  const hasRecipes = state.lists.some((l) => /recipe/i.test(l.title));
   return (
     <div className="page">
       <PageHeader
@@ -40,6 +41,15 @@ export function ListsPage() {
           <p className="muted">The one most households reach for first.</p>
           <button type="button" className="btn btn-quiet" onClick={() => void actions.saveList(null, 'Groceries', '')}>
             <Icon name="plus" size={17} /> Create Groceries
+          </button>
+        </div>
+      )}
+      {!hasRecipes && (
+        <div className="card">
+          <p className="card-title">Start a Recipes list</p>
+          <p className="muted">One tile per recipe. Hold a tile for its ingredients and method; tap it once you’ve made it, and it waits under Recently used.</p>
+          <button type="button" className="btn btn-quiet" onClick={() => void actions.saveList(null, 'Recipes', 'What to cook, and how.')}>
+            <Icon name="plus" size={17} /> Create Recipes
           </button>
         </div>
       )}
@@ -149,6 +159,7 @@ export function ListPage({ id }: { id: string }) {
   const open = list.items.filter((i) => !i.checked);
   const shown = az ? [...open].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })) : open;
   const recent = list.items.filter((i) => i.checked).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const words = listWords(list.title);
   const edit = (i: ListItem) => forms.open({ kind: 'item', listId: list.id, itemId: i.id });
   const tile = (i: ListItem) => (
     <Tile key={i.id} item={i} recent={i.checked} editing={editing} onTap={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />
@@ -173,7 +184,7 @@ export function ListPage({ id }: { id: string }) {
       <section className="tiles-section" aria-labelledby="to-get-h">
         <div className="list-tools">
           <h2 className="section-title" id="to-get-h">
-            To get <span className="count">{open.length}</span>
+            {words.open} <span className="count">{open.length}</span>
           </h2>
           {list.items.length > 0 && (
             <div className="list-tools-actions">
@@ -201,12 +212,12 @@ export function ListPage({ id }: { id: string }) {
             <ul className="tiles" id="to-get">
               {shown.map(tile)}
             </ul>
-            <p className="tile-hint">{editing ? 'Tap an item to edit or remove it.' : 'Tap an item once you have it. Hold it to edit.'}</p>
+            <p className="tile-hint">{editing ? words.editHint : words.hint}</p>
           </>
         ) : list.items.length === 0 ? (
-          <EmptyState title="Nothing on this list yet." body="Type what you need in the field below. Each item becomes a tile you tap once you have it." />
+          <EmptyState title={words.empty} body={words.emptyBody} />
         ) : (
-          <p className="muted">Everything’s checked off. Open Recently used to put things back.</p>
+          <p className="muted">{words.allDone}</p>
         )}
       </section>
 
@@ -214,11 +225,11 @@ export function ListPage({ id }: { id: string }) {
         <details className="recent">
           <summary>
             <Icon name="chevron" size={16} className="recent-chevron" />
-            Recently used <span className="count">{recent.length}</span>
+            {words.recent} <span className="count">{recent.length}</span>
           </summary>
           <ul className="tiles tiles-recent">{recent.map(tile)}</ul>
           <button type="button" className="btn btn-quiet btn-sm recent-clear" onClick={() => setConfirmClear(true)}>
-            <Icon name="trash" size={16} /> Clear recently used
+            <Icon name="trash" size={16} /> {words.clear}
           </button>
         </details>
       )}

@@ -41,6 +41,25 @@ export function PageHeader({ title, sub, actions, back }: { title: string; sub?:
   );
 }
 
+/** A section that starts closed: its title is the dropdown; a chevron turns as it opens. */
+export function FoldSection({ title, count, action, children, id }: { title: string; count?: number; action?: ReactNode; children: ReactNode; id?: string }) {
+  return (
+    <details className="section fold" id={id}>
+      <summary className="section-head fold-head">
+        <h2 className="section-title" id={id ? `${id}-h` : undefined}>
+          <Icon name="chevron" size={14} className="fold-chev" />
+          {title}
+          {count !== undefined && <span className="count">{count}</span>}
+        </h2>
+      </summary>
+      <div className="fold-body">
+        {action && <div className="fold-action">{action}</div>}
+        {children}
+      </div>
+    </details>
+  );
+}
+
 export function Section({ title, count, action, children, id }: { title: string; count?: number; action?: ReactNode; children: ReactNode; id?: string }) {
   return (
     <section className="section" aria-labelledby={id ? `${id}-h` : undefined}>

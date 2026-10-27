@@ -87,6 +87,7 @@ function startPreview() {
   // ---------------------------------------------------------------- shared lists across two phones
   await check('first run: an empty household offers to start a list', async () => {
     await go(J.page, '/');
+    await J.page.locator('#lists summary').click(); // Shared lists folds away until opened
     ok(await J.page.getByRole('button', { name: /Start a shared list/ }).isVisible(), 'empty state with action');
   });
   await check('lists: Jeffrey creates Groceries and adds Milk; it survives a reload', async () => {

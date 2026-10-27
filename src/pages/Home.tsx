@@ -9,9 +9,8 @@ import { viewTasks } from '../lib/tasks.ts';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { QuickAdd } from '../components/QuickAdd.tsx';
-import { InlineSearch } from '../components/Search.tsx';
 import { TaskRow } from '../components/Tasks.tsx';
-import { CardLink, Section } from '../components/ui.tsx';
+import { CardLink, FoldSection, Section } from '../components/ui.tsx';
 import { CalRow } from './Calendar.tsx';
 import { countdown } from '../lib/wedding.ts';
 
@@ -33,10 +32,8 @@ export function HomePage() {
         {greeting}, {MEMBERS[me].name}.
       </h1>
 
-      <InlineSearch />
-
       <div className="home-grid">
-        <Section title="Pinned" id="pins">
+        <FoldSection title="Pinned" count={pins.length} id="pins">
           {pins.length > 0 ? (
             <div className="pin-grid">
               {pins.map((p) => (
@@ -51,7 +48,7 @@ export function HomePage() {
               </Link>
             </div>
           )}
-        </Section>
+        </FoldSection>
 
         {state.wedding?.date && (() => {
           const c = countdown(state.wedding.date, today);
@@ -81,7 +78,7 @@ export function HomePage() {
           )}
         </Section>
 
-        <Section title="Shared lists" id="lists" action={<Link to={routes.lists} className="inline-link">All lists</Link>}>
+        <FoldSection title="Shared lists" count={state.lists.length} id="lists" action={<Link to={routes.lists} className="inline-link">All lists</Link>}>
           {lists.length > 0 ? (
             <div className="stack">
               {lists.map((l, idx) => {
@@ -117,7 +114,7 @@ export function HomePage() {
               </button>
             </div>
           )}
-        </Section>
+        </FoldSection>
 
         {coming.length > 0 && (
           <Section title="Coming up" id="coming" action={<Link to={routes.plans} className="inline-link">See all</Link>}>

@@ -75,10 +75,45 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
-  // ---------------------------------------------------------------- search
+  // ---------------------------------------------------------------- home: no search bar; Pinned and Shared lists folded until opened
   {
     const { ctx, page } = await newPage();
     await open(page, '/');
+    await check('home: no search field; Pinned and Shared lists start closed and open on a tap', async () => {
+      eq(await page.locator('main input[type=search]').count(), 0, 'no search bar on Home');
+      eq(await page.locator('#pins').evaluate((d) => d.open), false, 'Pinned closed');
+      eq(await page.locator('#lists').evaluate((d) => d.open), false, 'Shared lists closed');
+      ok(!(await page.locator('.pin-grid').isVisible()), 'pins hidden while closed');
+      await page.locator('#pins summary').click();
+      ok(await page.locator('.pin-grid').isVisible(), 'pins shown once opened');
+      await page.locator('#lists summary').click();
+      ok(await page.getByRole('link', { name: 'All lists' }).isVisible(), 'lists shown once opened');
+    });
+    await check('lists: a Recipes list holds a recipe per tile, with its ingredients and method on the tile’s back', async () => {
+      await open(page, '/lists/recipes');
+      ok(await page.locator('#to-get .tile', { hasText: 'Weeknight pasta' }).isVisible(), 'recipe tile');
+      await page.getByRole('button', { name: 'Edit items' }).click();
+      await page.getByRole('button', { name: /^Edit “Weeknight pasta/ }).click();
+      const d = page.getByRole('dialog');
+      ok((await d.getByLabel(/^Details/).inputValue()).includes('Boil the pasta'), 'method in the details');
+      await d.getByRole('button', { name: 'Close without saving' }).click();
+    });
+    await check('wedding: the tab takes its magenta hue while open, and gives it back on leaving', async () => {
+      await nav(page, 'Wedding').click();
+      await page.locator('.wed-hero').waitFor();
+      eq(await page.evaluate(() => document.documentElement.dataset.theme), 'wedding', 'theme on');
+      await nav(page, 'Home').click();
+      await page.locator('.greeting').waitFor();
+      eq(await page.evaluate(() => document.documentElement.dataset.theme), undefined, 'theme off');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
+  // ---------------------------------------------------------------- search
+  {
+    const { ctx, page } = await newPage();
+    await open(page, '/search');
     await check('search: "my fax" reads as the viewer and returns fax values, copy-only', async () => {
       await searchFor(page, 'my fax');
       const r = await rows(page);
@@ -354,7 +389,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await open(page, '/settings');
     await check('viewing as Zul: "my fax" now means Zul’s fax', async () => {
       await page.getByRole('button', { name: 'Zul', exact: true }).click();
-      await nav(page, 'Home').click();
+      await page.getByRole('link', { name: 'Search' }).first().click();
       await searchFor(page, 'my fax');
       const r = await rows(page);
       ok(r.length === 1 && r[0].includes('Zul') && r[0].includes('(555) 010-0302'), JSON.stringify(r));
@@ -364,10 +399,12 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.getByRole('link', { name: /AC and filter/ }).first().click();
       await page.getByRole('button', { name: 'Pin to Home' }).click();
       await nav(page, 'Home').click();
+      await page.locator('#pins summary').click();
       ok(await page.locator('.pin-grid').getByText('AC and filter').first().isVisible(), 'pinned on Home');
       await page.getByRole('link', { name: /AC and filter/ }).first().click();
       await page.getByRole('button', { name: /^Pinned/ }).click();
       await nav(page, 'Home').click();
+      await page.locator('#pins summary').click();
       eq(await page.locator('.pin-grid').getByText('AC and filter').count(), 0, 'unpinned');
     });
     await check('contact: add one, it appears with a tel: link and is searchable', async () => {

@@ -120,6 +120,9 @@ export function makeDemoRows(today: DateStr): Row[] {
     item('groceries', 'g9', 'zul', 'Hand soap', 9, { checked: true }),
     item('groceries', 'g10', 'jeffrey', 'Chicken thighs', 10, { checked: true }),
     row('list', 'packing', 'jeffrey', 3, { title: 'Packing (demo)', description: 'A custom list.' }),
+    row('list', 'recipes', 'jeffrey', 2, { title: 'Recipes', description: 'What to cook, and how.' }),
+    item('recipes', 'r1', 'jeffrey', 'Weeknight pasta (demo)', 1, { note: 'Pasta, garlic, olive oil, chilli, parmesan.\nBoil the pasta. Warm the garlic and chilli in the oil, toss with the pasta and a ladle of its water, finish with parmesan.' }),
+    item('recipes', 'r2', 'zul', 'Overnight oats (demo)', 2, { qty: 'Serves 2', note: 'Oats, milk, yoghurt, honey, berries.\nStir together, leave in the fridge overnight, top with berries.', checked: true }),
     item('packing', 'p1', 'jeffrey', 'Chargers', 1),
     item('packing', 'p2', 'zul', 'Toiletries', 2),
 

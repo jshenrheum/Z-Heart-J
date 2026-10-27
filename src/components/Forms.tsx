@@ -512,7 +512,7 @@ function ItemForm({ listId, itemId, onClose }: { listId: string; itemId: string;
   const fields: FieldDef[] = [
     { name: 'name', label: 'Item', required: true, maxLength: 100 },
     { name: 'qty', label: 'Quantity', maxLength: 40, placeholder: 'e.g. 2, 1 dozen' },
-    { name: 'note', label: 'Details', maxLength: 200, placeholder: 'e.g. shredded, the big bag' },
+    { name: 'note', label: 'Details', type: 'textarea', maxLength: 2000, placeholder: 'e.g. shredded, the big bag — or a recipe’s ingredients and method' },
   ];
   return (
     <FormSheet

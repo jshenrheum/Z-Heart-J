@@ -596,7 +596,40 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .trash-entry .card-main { flex: 1 1 220px; }
 .state-panel { display: grid; justify-items: start; gap: 12px; max-width: 34rem; padding: 28px 0; }
 
-/* ------------------------------------------------------------------ wedding */
+/* ------------------------------------------------------------------ folded sections (Home) */
+.fold { display: block; }
+.fold-head { list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; min-height: 44px; }
+.fold-head::-webkit-details-marker { display: none; }
+.fold-head .section-title { gap: 8px; transition: color var(--t); }
+.fold-head:hover .section-title { color: var(--text); }
+.fold-chev { transition: transform var(--t) var(--ease); }
+.fold[open] .fold-chev { transform: rotate(90deg); }
+.fold-body { display: grid; gap: 12px; padding-top: 2px; }
+.fold-action { display: flex; justify-content: flex-end; }
+
+/* ------------------------------------------------------------------ wedding
+   The Wedding tab takes a deep magenta hue while it is open (data-theme on <html>,
+   set by the page). The frame (header, tab bar) stays black. */
+:root[data-theme="wedding"] {
+  --bg: #1A0912;
+  --bg-elev: #220E19;
+  --surface: #2A1220;
+  --surface-2: #35182A;
+  --surface-3: #421F35;
+  --hairline: #3B1A2F;
+  --line: #4F2642;
+  --text: #FBF3F7;
+  --text-2: #EBD3DE;
+  --muted: #C19BAD;
+  --faint: #7D5A6D;
+  --input-border: #8E6A7E;
+  --accent: #E9B9C8;
+}
+:root[data-theme="wedding"] body { background: radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%), var(--bg); }
+:root[data-theme="wedding"] .wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
+:root[data-theme="wedding"] .chip-good { background: #173024; border-color: #27503A; }
+
+
 .wed-hero {
   position: relative; display: grid; gap: 6px; padding: 26px 22px 22px; overflow: hidden;
   background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.16), transparent 60%), var(--surface);

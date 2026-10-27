@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { MEMBERS, type BudgetItem, type Guest, type Vendor } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { displayDate, dueState } from '../lib/dates.ts';
@@ -29,6 +30,13 @@ export function WeddingPage() {
   const tab: Tab = TABS.some((t) => t.key === raw) ? (raw as Tab) : 'overview';
   const w = state.wedding;
   const plan = weddingPlan(state);
+  // The page's own hue: set while it's open, gone when it isn't.
+  useEffect(() => {
+    document.documentElement.dataset.theme = 'wedding';
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, []);
   const tasks = plan ? state.tasks.filter((t) => t.planId === plan.id) : [];
   const open = viewTasks(tasks, 'all');
   const doneTasks = viewTasks(tasks, 'completed');

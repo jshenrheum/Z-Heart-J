@@ -252,7 +252,7 @@ const SPECS: Record<Kind, Rule> = {
     website: url, note: text(1000, { multiline: true }), aliases: array(text(40), 20),
   }),
   list: object({ title: text(80, { required: true }), description: text(200) }),
-  item: object({ name: text(100, { required: true }), qty: text(40), note: text(200), checked: bool, position: finite }),
+  item: object({ name: text(100, { required: true }), qty: text(40), note: text(2000, { multiline: true }), checked: bool, position: finite }),
   plan: object({
     title: text(100, { required: true }), description: text(1000, { multiline: true }), target: date,
     template: oneOf(['travel', 'wedding', 'home', 'custom'] as const), status: oneOf(['active', 'done'] as const),
