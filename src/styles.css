@@ -625,6 +625,9 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
   --input-border: #8E6A7E;
   --accent: #E9B9C8;
 }
+.wed-art { margin: 0; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 48px -24px rgba(0, 0, 0, 0.8); background: var(--surface); }
+.wed-art img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+@media (min-width: 900px) { .wed-art { max-width: 520px; } }
 :root[data-theme="wedding"] body { background: radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%), var(--bg); }
 :root[data-theme="wedding"] .wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
 :root[data-theme="wedding"] .chip-good { background: #173024; border-color: #27503A; }

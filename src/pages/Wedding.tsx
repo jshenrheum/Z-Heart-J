@@ -12,6 +12,8 @@ import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { TaskRow } from '../components/Tasks.tsx';
 import { Chip, EmptyState, FilterChips, PageHeader, Section, UpdatedBy } from '../components/ui.tsx';
+import artLarge from '../assets/art/us.webp';
+import artSmall from '../assets/art/us-600.webp';
 
 type Tab = 'overview' | 'checklist' | 'vendors' | 'budget' | 'guests';
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -66,6 +68,9 @@ export function WeddingPage() {
 
       {tab === 'overview' && (
         <>
+          <figure className="wed-art">
+            <img src={artLarge} srcSet={`${artSmall} 600w, ${artLarge} 1200w`} sizes="(min-width: 900px) 520px, 100vw" width={1200} height={1200} alt="The two of you, drawn: in white coats, hand in hand in a hospital corridor at sunset." decoding="async" />
+          </figure>
           <div className="wed-hero">
             <span className="wed-hero-label">
               <Icon name="heart" size={12} /> Countdown
