@@ -247,6 +247,7 @@ function startPreview() {
     await J.page.waitForTimeout(600);
     await J.page.reload({ waitUntil: 'networkidle' }); await ready(J.page);
     eq(await J.page.locator('.task', { hasText: 'Replace AC filter' }).count(), 1, 'still one after undo');
+    await J.page.locator('.task', { hasText: 'Replace AC filter' }).locator('.task-line').click();
     ok((await J.page.locator('.task', { hasText: 'Replace AC filter' }).innerText()).includes('Nov 6'), 'original due date back');
   });
   await check('trash: a deleted contact waits in the trash, and Restore brings it back for both', async () => {

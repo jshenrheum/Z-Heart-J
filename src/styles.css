@@ -519,7 +519,7 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .task-list { list-style: none; padding: 4px 8px; }
 .task { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 2px 0; }
 .task + .task { border-top: 1px solid var(--hairline); }
-.task { align-items: flex-start; padding: 6px 0; }
+.task { align-items: flex-start; padding: 2px 0; }
 .task.is-done .task-title { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
 .check { position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
 .check::before { content: ""; width: 22px; height: 22px; border: 1.5px solid var(--muted); border-radius: 50%; background: transparent; transition: background var(--t), border-color var(--t), transform var(--t) var(--ease); }
@@ -527,7 +527,21 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .check[aria-checked="true"]::before { background: var(--primary); border-color: var(--primary); }
 .check:active::before { transform: scale(0.9); }
 .check svg { position: absolute; color: var(--on-primary); }
-.task-body { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 6px 6px 6px 0; }
+.task-body { flex: 1; min-width: 0; display: grid; }
+.task-line {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 6px 0 2px; text-align: left;
+  font: inherit; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.task-line .task-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-flag { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.task-flag.t-warn { color: var(--warn); }
+.task-flag.t-heart { color: var(--heart); }
+.task-chev { flex: none; color: var(--faint); transform: rotate(90deg); transition: transform var(--t) var(--ease); }
+.task-line[aria-expanded="true"] .task-chev { transform: rotate(-90deg); }
+.task-line:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.task-details { display: grid; gap: 6px; justify-items: start; padding: 0 6px 12px 2px; animation: drop 160ms var(--ease); }
+.task-edit-btn { margin-top: 2px; }
+@keyframes drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .task-title { font-weight: 500; }
 .task-edit { justify-self: start; min-height: 44px; margin: -10px 0 -8px -6px; padding: 0 6px; text-align: left; font: inherit; font-weight: 500; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: background var(--t); }
 .task-edit:hover { background: var(--surface-2); }

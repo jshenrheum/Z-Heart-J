@@ -632,23 +632,48 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- tasks as one-line rows
+  {
+    const { ctx, page } = await newPage();
+    await open(page, '/plans');
+    await check('tasks: one line each, details hidden until the row is opened, with Edit inside', async () => {
+      const row = page.locator('.task', { hasText: 'Replace AC filter' }).first();
+      const h = (await row.boundingBox()).height;
+      ok(h < 60, 'one line: ' + h);
+      ok(!(await row.innerText()).includes('Every 3 months'), 'details hidden');
+      ok(await page.locator('.task', { hasText: 'Test smoke alarms' }).locator('.task-flag.t-warn').isVisible(), 'an overdue task keeps its dot');
+      await row.locator('.task-line').click();
+      eq(await row.locator('.task-line').getAttribute('aria-expanded'), 'true', 'opened');
+      ok((await row.innerText()).includes('Every 3 months on a schedule'), 'details shown');
+      await row.getByRole('button', { name: 'Edit “Replace AC filter”' }).click();
+      await page.getByRole('dialog').waitFor();
+      await page.getByRole('button', { name: 'Close without saving' }).click();
+      await row.locator('.task-line').click();
+      ok(!(await row.innerText()).includes('Every 3 months'), 'closed again');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
   // ---------------------------------------------------------------- recurring tasks
   {
     const { ctx, page } = await newPage();
     await open(page, '/plans');
     const taskRow = (title) => page.locator('.task', { hasText: title });
+    const details = async (title) => { const r = taskRow(title).first(); if ((await r.locator('.task-line').getAttribute('aria-expanded')) !== 'true') await r.locator('.task-line').click(); return r.innerText(); };
     await check('recurring (schedule): completing creates the next one anchored to the due date', async () => {
       await page.getByRole('checkbox', { name: /Mark “Replace AC filter” done/ }).click();
       await page.waitForTimeout(400);
       const row = taskRow('Replace AC filter').first();
       ok(await row.isVisible(), 'next instance present');
-      ok((await row.innerText()).includes('Feb 6, 2027'), 'next due is 3 months after Nov 6: ' + (await row.innerText()));
+      ok(await row.isVisible(), 'row');
+      ok((await details('Replace AC filter')).includes('Feb 6, 2027'), 'next due is 3 months after Nov 6: ' + (await row.innerText()));
     });
     await check('recurring (after completion): next one is 6 months after today, not after the old due date', async () => {
       await page.getByRole('checkbox', { name: /Mark “Test smoke alarms” done/ }).click();
       await page.waitForTimeout(400);
       const row = taskRow('Test smoke alarms').first();
-      ok((await row.innerText()).includes('Apr 25, 2027'), 'next due: ' + (await row.innerText()));
+      ok((await details('Test smoke alarms')).includes('Apr 25, 2027'), 'next due: ' + (await row.innerText()));
     });
     await check('toast: the Undo button stays on one line', async () => {
       const box = await page.locator('.toast-action').first().boundingBox();
@@ -658,7 +683,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.getByRole('button', { name: 'Undo' }).click();
       await page.waitForTimeout(400);
       eq(await taskRow('Test smoke alarms').count(), 1, 'one smoke-alarm task after undo');
-      ok((await taskRow('Test smoke alarms').first().innerText()).includes('overdue'), 'back to overdue');
+      ok((await details('Test smoke alarms')).includes('overdue'), 'back to overdue');
     });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();
