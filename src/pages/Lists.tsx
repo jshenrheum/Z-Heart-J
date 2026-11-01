@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from 'react';
+import { useState } from 'react';
 import type { ListItem } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { NeedDock } from '../components/NeedDock.tsx';
-import { itemSub, listWords } from '../lib/lists.ts';
+import { listWords } from '../lib/lists.ts';
 import { useOnline } from '../lib/online.ts';
 import { CardLink, ConfirmDialog, EmptyState, PageHeader, PinButton, UpdatedBy } from '../components/ui.tsx';
 import { routes } from '../lib/routes.ts';
@@ -75,75 +75,33 @@ const writeAz = (on: boolean) => {
   }
 };
 
-/**
- * Tap to act; press and hold (or right-click) to edit. After a hold, the finger
- * lifting produces no click, so the item isn't also checked off.
- */
-function useHold(onTap: () => void, onHold: () => void) {
-  const timer = useRef<number | undefined>(undefined);
-  const held = useRef(false);
-  const origin = useRef<{ x: number; y: number } | null>(null);
-  const stop = () => {
-    if (timer.current !== undefined) window.clearTimeout(timer.current);
-    timer.current = undefined;
-  };
-  useEffect(() => stop, []);
-  return {
-    onPointerDown: (e: ReactPointerEvent) => {
-      held.current = false;
-      stop();
-      if (e.button !== 0) return;
-      origin.current = { x: e.clientX, y: e.clientY };
-      timer.current = window.setTimeout(() => {
-        timer.current = undefined;
-        held.current = true;
-        onHold();
-      }, 450);
-    },
-    onPointerMove: (e: ReactPointerEvent) => {
-      const o = origin.current;
-      if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > 10) stop();
-    },
-    onPointerUp: stop,
-    onPointerCancel: stop,
-    onPointerLeave: stop,
-    onTouchEnd: (e: ReactTouchEvent) => {
-      if (held.current) e.preventDefault();
-    },
-    onContextMenu: (e: ReactMouseEvent) => {
-      e.preventDefault();
-      if (held.current) return;
-      stop();
-      held.current = true;
-      onHold();
-    },
-    onClick: () => {
-      if (held.current) {
-        held.current = false;
-        return;
-      }
-      onTap();
-    },
-  };
-}
-
-function Tile({ item, recent, editing, onTap, onEdit }: { item: ListItem; recent: boolean; editing: boolean; onTap: () => void; onEdit: () => void }) {
-  const press = useHold(editing ? onEdit : onTap, onEdit);
-  const sub = itemSub(item);
-  const action = editing ? 'Edit' : recent ? 'Put back' : 'Check off';
+/** One line per item: a circle to tick (or put back), the name, and an arrow that drops down its details and Edit. */
+function ItemRow({ item, away, onToggle, onEdit }: { item: ListItem; away: boolean; onToggle: () => void; onEdit: () => void }) {
+  const [open, setOpen] = useState(false);
+  const done = item.checked;
   return (
-    <li>
-      <button
-        type="button"
-        className={`tile ${recent ? 'tile-recent' : ''} ${editing ? 'is-editing' : ''} ${item.sync ? 'is-saving' : ''}`}
-        aria-label={`${action} “${item.name}”${sub ? `, ${sub}` : ''}`}
-        aria-busy={item.sync ? true : undefined}
-        {...press}
-      >
-        <span className="tile-name">{item.name}</span>
-        {sub && <span className="tile-sub">{sub}</span>}
-        {editing && <Icon name="edit" size={14} className="tile-mark" />}
+    <li className={`li-row ${done ? 'is-done' : ''} ${item.sync ? 'is-saving' : ''}`} aria-busy={item.sync ? true : undefined}>
+      <button type="button" role="checkbox" aria-checked={done} className="check" aria-label={done ? `Put back “${item.name}”` : `Check off “${item.name}”`} onClick={onToggle}>
+        {done && <Icon name="check" size={18} />}
       </button>
+      <div className="li-body">
+        <button type="button" className="li-line" aria-expanded={open} aria-controls={`ld-${item.id}`} onClick={() => setOpen((v) => !v)}>
+          <span className="li-name">{item.name}</span>
+          <Icon name="chevron" size={16} className="li-chev" />
+        </button>
+        {open && (
+          <div className="li-details" id={`ld-${item.id}`}>
+            {item.qty && <span>{item.qty}</span>}
+            {item.note && <span className="li-note">{item.note}</span>}
+            {!item.qty && !item.note && <span className="muted">No details yet.</span>}
+            {!away && (
+              <button type="button" className="btn btn-quiet btn-sm" onClick={onEdit} aria-label={`Edit “${item.name}”`}>
+                <Icon name="edit" size={15} /> Edit
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </li>
   );
 }
@@ -155,7 +113,6 @@ export function ListPage({ id }: { id: string }) {
   const away = !online || offline.copy;
   const forms = useForms();
   const list = state.lists.find((l) => l.id === id);
-  const [editing, setEditing] = useState(false);
   const [az, setAz] = useState(readAz);
   const [confirmClear, setConfirmClear] = useState(false);
   if (!list) return <NotFound what="list" />;
@@ -165,9 +122,7 @@ export function ListPage({ id }: { id: string }) {
   const recent = list.items.filter((i) => i.checked).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const words = listWords(list.title);
   const edit = (i: ListItem) => forms.open({ kind: 'item', listId: list.id, itemId: i.id });
-  const tile = (i: ListItem) => (
-    <Tile key={i.id} item={i} recent={i.checked} editing={editing && !away} onTap={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />
-  );
+  const row = (i: ListItem) => <ItemRow key={i.id} item={i} away={away} onToggle={() => void actions.toggleItem(list.id, i.id)} onEdit={() => edit(i)} />;
 
   return (
     <div className="page list-page">
@@ -207,20 +162,15 @@ export function ListPage({ id }: { id: string }) {
                   A–Z
                 </button>
               )}
-              {!away && (
-                <button type="button" className={`btn btn-quiet btn-sm ${editing ? 'is-on' : ''}`} aria-pressed={editing} onClick={() => setEditing((v) => !v)}>
-                  {editing ? 'Done' : 'Edit items'}
-                </button>
-              )}
             </div>
           )}
         </div>
         {open.length > 0 ? (
           <>
-            <ul className="tiles" id="to-get">
-              {shown.map(tile)}
+            <ul className="li-list card" id="to-get">
+              {shown.map(row)}
             </ul>
-            <p className="tile-hint">{editing && !away ? words.editHint : away ? words.hint.replace(/ Hold it.*$/, '') : words.hint}</p>
+            <p className="tile-hint">{words.hint}</p>
           </>
         ) : list.items.length === 0 ? (
           <EmptyState title={words.empty} body={words.emptyBody} />
@@ -235,7 +185,7 @@ export function ListPage({ id }: { id: string }) {
             <Icon name="chevron" size={16} className="recent-chevron" />
             {words.recent} <span className="count">{recent.length}</span>
           </summary>
-          <ul className="tiles tiles-recent">{recent.map(tile)}</ul>
+          <ul className="li-list card">{recent.map(row)}</ul>
           <button type="button" className="btn btn-quiet btn-sm recent-clear" onClick={() => setConfirmClear(true)} hidden={away}>
             <Icon name="trash" size={16} /> {words.clear}
           </button>

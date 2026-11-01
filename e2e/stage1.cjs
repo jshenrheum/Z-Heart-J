@@ -89,10 +89,13 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.locator('#lists summary').click();
       ok(await page.getByRole('link', { name: 'All lists' }).isVisible(), 'lists shown once opened');
     });
-    await check('lists: a Recipes list holds a recipe per tile, with its ingredients and method on the tile’s back', async () => {
+    await check('lists: a Recipes list holds a recipe per row, its ingredients and method dropping down from it', async () => {
       await open(page, '/lists/recipes');
-      ok(await page.locator('#to-get .tile', { hasText: 'Weeknight pasta' }).isVisible(), 'recipe tile');
-      await page.getByRole('button', { name: 'Edit items' }).click();
+      const r = page.locator('#to-get .li-row', { hasText: 'Weeknight pasta' });
+      ok(await r.isVisible(), 'recipe row');
+      ok(!(await r.innerText()).includes('Boil the pasta'), 'method hidden at first');
+      await r.locator('.li-line').click();
+      ok((await r.innerText()).includes('Boil the pasta'), 'method shown');
       await page.getByRole('button', { name: /^Edit “Weeknight pasta/ }).click();
       const d = page.getByRole('dialog');
       ok((await d.getByLabel(/^Details/).inputValue()).includes('Boil the pasta'), 'method in the details');
@@ -184,8 +187,8 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
 
   // ---------------------------------------------------------------- lists: tiles, recently used, the I need… field
   const need = (page) => page.getByPlaceholder('I need…');
-  const toGet = (page, name) => page.locator('#to-get .tile', name ? { hasText: name } : undefined);
-  const toGetNames = (page) => page.$$eval('#to-get .tile-name', (e) => e.map((x) => x.textContent.trim()));
+  const toGet = (page, name) => page.locator('#to-get .li-row', name ? { hasText: name } : undefined);
+  const toGetNames = (page) => page.$$eval('#to-get .li-name', (e) => e.map((x) => x.textContent.trim()));
   {
     const { ctx, page } = await newPage();
     await open(page, '/lists/groceries');
@@ -199,7 +202,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       eq(await need(page).inputValue(), '', 'field cleared');
     });
     await check('list: tapping a tile checks it off, and Undo brings it back', async () => {
-      await page.getByRole('button', { name: /^Check off “Milk”/ }).click();
+      await page.getByRole('checkbox', { name: /^Check off “Milk”/ }).click();
       await page.waitForTimeout(150);
       eq(await toGet(page, 'Milk').count(), 0, 'Milk left To get');
       const undo = page.getByRole('button', { name: 'Undo' });
@@ -211,7 +214,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await check('list: Recently used starts closed; one tap puts an item back', async () => {
       eq(await page.locator('details.recent').evaluate((d) => d.open), false, 'closed on arrival');
       await page.locator('details.recent summary').click();
-      await page.getByRole('button', { name: /^Put back “Rice”/ }).click();
+      await page.getByRole('checkbox', { name: /^Put back “Rice”/ }).click();
       await page.waitForTimeout(200);
       ok(await toGet(page, 'Rice').first().isVisible(), 'Rice back in To get');
     });
@@ -221,7 +224,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await need(page).fill('hand soap');
       await need(page).press('Enter');
       await page.waitForTimeout(200);
-      eq(await page.locator('.tile', { hasText: 'Hand soap' }).count(), 1, 'still one Hand soap');
+      eq(await page.locator('.li-row', { hasText: 'Hand soap' }).count(), 1, 'still one Hand soap');
       eq(await toGet(page, 'Hand soap').count(), 1, 'and it is in To get');
       await need(page).fill('shred');
       await page.getByRole('group', { name: 'Recently used' }).getByRole('button', { name: /^Put back “Cheese”, Shredded/ }).click();
@@ -233,7 +236,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const dock = await page.locator('.dock').boundingBox();
       const navBox = await page.locator('nav.nav').boundingBox();
       ok(dock.y + dock.height <= navBox.y + 1, `dock bottom ${dock.y + dock.height} vs nav top ${navBox.y}`);
-      await page.getByRole('button', { name: /^Check off “Eggs”/ }).click();
+      await page.getByRole('checkbox', { name: /^Check off “Eggs”/ }).click();
       await page.waitForTimeout(300); // after the toast's rise
       const toast = await page.locator('.toast').first().boundingBox();
       ok(toast.y + toast.height <= dock.y, `toast bottom ${toast.y + toast.height} vs dock top ${dock.y}`);
@@ -242,26 +245,24 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
-  // ---------------------------------------------------------------- holding a tile (touch) opens the editor and checks nothing off
+  // ---------------------------------------------------------------- one line per item; details drop down
   {
     const { ctx, page } = await newPage({ hasTouch: true, isMobile: true });
     await open(page, '/lists/groceries');
-    await check('list: press and hold a tile on a touch screen opens its editor; the item stays on the list', async () => {
-      const box = await toGet(page, 'Bananas').first().boundingBox();
-      const cdp = await ctx.newCDPSession(page);
-      const pt = [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }];
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt });
-      await page.waitForTimeout(650);
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await page.waitForTimeout(400);
-      const d = page.getByRole('dialog');
-      ok(await d.isVisible(), 'editor open (and not closed by the lifting finger)');
-      eq(await d.getByLabel(/^Item/).inputValue(), 'Bananas', 'the held item');
-      eq(await toGet(page, 'Bananas').count(), 1, 'not checked off');
-      await d.getByRole('button', { name: /Close without saving/ }).click();
+    await check('list: one line per item; tapping the name drops down its details without ticking it', async () => {
+      const r = toGet(page, 'Milk').first();
+      ok((await r.boundingBox()).height < 60, 'one line');
+      ok(!(await r.innerText()).includes('1 gal'), 'quantity hidden at first');
+      await r.locator('.li-line').tap();
+      eq(await r.locator('.li-line').getAttribute('aria-expanded'), 'true', 'opened');
+      ok((await r.innerText()).includes('1 gal'), 'quantity shown');
+      ok(await r.getByRole('button', { name: /^Edit “Milk”/ }).isVisible(), 'Edit inside');
+      eq(await toGet(page, 'Milk').count(), 1, 'not ticked');
+      await r.locator('.li-line').tap();
+      ok(!(await r.innerText()).includes('1 gal'), 'folded again');
     });
-    await check('list: a quick tap on a touch screen still checks the item off', async () => {
-      await toGet(page, 'Bananas').first().tap();
+    await check('list: the circle ticks the item off on a touch screen', async () => {
+      await page.getByRole('checkbox', { name: /^Check off “Bananas”/ }).tap();
       await page.waitForTimeout(200);
       eq(await toGet(page, 'Bananas').count(), 0, 'checked off');
     });
@@ -303,8 +304,9 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await ctx.setOffline(true); await page.waitForTimeout(300);
       ok(await toGet(page, 'Honey').first().isVisible(), 'the list is still here');
       ok((await page.locator('.offline-note').innerText()).includes('Offline'), 'says it is offline');
-      eq(await page.getByRole('button', { name: 'Edit items' }).count(), 0, 'editing waits for a connection');
-      await page.getByRole('button', { name: /^Check off “Milk”/ }).click();
+      await toGet(page, 'Coffee').first().locator('.li-line').click();
+      eq(await page.getByRole('button', { name: /^Edit “Coffee”/ }).count(), 0, 'editing waits for a connection');
+      await page.getByRole('checkbox', { name: /^Check off “Milk”/ }).click();
       await need(page).fill('Olives');
       await need(page).press('Enter');
       await page.waitForTimeout(200);
@@ -324,7 +326,8 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       eq(await page.locator('.offline-note').count(), 0, 'note gone');
       eq(await toGet(page, 'Milk').count(), 0, 'Milk stays checked off');
       ok(await toGet(page, 'Olives').first().isVisible(), 'Olives kept');
-      ok(await page.getByRole('button', { name: 'Edit items' }).isVisible(), 'editing is back');
+      await toGet(page, 'Olives').first().locator('.li-line').click();
+      ok(await page.getByRole('button', { name: /^Edit “Olives”/ }).isVisible(), 'editing is back');
     });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();
@@ -343,8 +346,8 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.waitForTimeout(300);
       eq((await toGetNames(page)).filter((n) => /^milk$/i.test(n)).length, 2, 'added on confirm');
     });
-    await check('list: Edit items, then tap a tile to edit it (name and quantity)', async () => {
-      await page.getByRole('button', { name: 'Edit items' }).click();
+    await check('list: open a row, then Edit it (name and quantity)', async () => {
+      await toGet(page, 'Eggs').first().locator('.li-line').click();
       await page.getByRole('button', { name: /^Edit “Eggs”/ }).click();
       const d = page.getByRole('dialog');
       await d.getByLabel(/^Item/).fill('Free-range eggs');
@@ -352,9 +355,8 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await d.getByRole('button', { name: 'Save' }).click();
       await d.waitFor({ state: 'detached', timeout: 3000 });
       ok((await toGetNames(page)).includes('Free-range eggs'), 'renamed');
-      ok(await page.getByText('2 dozen').first().isVisible(), 'quantity shown');
-      await page.getByRole('button', { name: 'Done' }).click();
-      ok(await page.getByRole('button', { name: /^Check off “Free-range eggs”/ }).isVisible(), 'tiles back to checking off');
+      ok(await page.getByText('2 dozen').first().isVisible(), 'quantity shown in the open row');
+      ok(await page.getByRole('checkbox', { name: /^Check off “Free-range eggs”/ }).isVisible(), 'still ticks');
     });
     await check('list: A–Z sorts the tiles, and turning it off restores the order they were added', async () => {
       const added = await toGetNames(page);
@@ -365,15 +367,11 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.getByRole('button', { name: 'A–Z' }).click();
       eq(JSON.stringify(await toGetNames(page)), JSON.stringify(added), 'order added');
     });
-    await check('list: holding a tile with the mouse opens its editor; removing is undoable', async () => {
-      const box = await toGet(page, 'Bananas').first().boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down();
-      await page.waitForTimeout(600);
-      await page.mouse.up();
+    await check('list: removing an item from its editor is undoable', async () => {
+      await toGet(page, 'Bananas').first().locator('.li-line').click();
+      await page.getByRole('button', { name: /^Edit “Bananas”/ }).click();
       const d = page.getByRole('dialog');
       await d.waitFor({ timeout: 2000 });
-      eq(await toGet(page, 'Bananas').count(), 1, 'the hold did not check it off');
       await d.getByRole('button', { name: 'Remove' }).click();
       await page.waitForTimeout(300);
       ok(!(await toGetNames(page)).includes('Bananas'), 'removed');
@@ -388,12 +386,12 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       ok((await page.getByRole('alertdialog').innerText()).includes('both of you'), 'shared-data warning shown');
       await page.getByRole('alertdialog').getByRole('button', { name: 'Clear' }).click();
       await page.waitForTimeout(300);
-      eq(await page.locator('.tile', { hasText: 'Olive oil' }).count(), 0, 'recently used item gone');
+      eq(await page.locator('.li-row', { hasText: 'Olive oil' }).count(), 0, 'recently used item gone');
       eq(await page.locator('details.recent').count(), 0, 'section gone when empty');
       await page.getByRole('button', { name: 'Undo' }).click();
       await page.waitForTimeout(300);
       if (!(await page.locator('details.recent').evaluate((d) => d.open))) await page.locator('details.recent summary').click();
-      eq(await page.locator('.tile-recent', { hasText: 'Olive oil' }).count(), 1, 'recently used item back');
+      eq(await page.locator('.li-row.is-done', { hasText: 'Olive oil' }).count(), 1, 'recently used item back');
     });
     await check('list: a new list can be created and opened', async () => {
       await nav(page, 'Lists').click();
@@ -632,48 +630,23 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
-  // ---------------------------------------------------------------- tasks as one-line rows
-  {
-    const { ctx, page } = await newPage();
-    await open(page, '/plans');
-    await check('tasks: one line each, details hidden until the row is opened, with Edit inside', async () => {
-      const row = page.locator('.task', { hasText: 'Replace AC filter' }).first();
-      const h = (await row.boundingBox()).height;
-      ok(h < 60, 'one line: ' + h);
-      ok(!(await row.innerText()).includes('Every 3 months'), 'details hidden');
-      ok(await page.locator('.task', { hasText: 'Test smoke alarms' }).locator('.task-flag.t-warn').isVisible(), 'an overdue task keeps its dot');
-      await row.locator('.task-line').click();
-      eq(await row.locator('.task-line').getAttribute('aria-expanded'), 'true', 'opened');
-      ok((await row.innerText()).includes('Every 3 months on a schedule'), 'details shown');
-      await row.getByRole('button', { name: 'Edit “Replace AC filter”' }).click();
-      await page.getByRole('dialog').waitFor();
-      await page.getByRole('button', { name: 'Close without saving' }).click();
-      await row.locator('.task-line').click();
-      ok(!(await row.innerText()).includes('Every 3 months'), 'closed again');
-    });
-    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
-    await ctx.close();
-  }
-
   // ---------------------------------------------------------------- recurring tasks
   {
     const { ctx, page } = await newPage();
     await open(page, '/plans');
     const taskRow = (title) => page.locator('.task', { hasText: title });
-    const details = async (title) => { const r = taskRow(title).first(); if ((await r.locator('.task-line').getAttribute('aria-expanded')) !== 'true') await r.locator('.task-line').click(); return r.innerText(); };
     await check('recurring (schedule): completing creates the next one anchored to the due date', async () => {
       await page.getByRole('checkbox', { name: /Mark “Replace AC filter” done/ }).click();
       await page.waitForTimeout(400);
       const row = taskRow('Replace AC filter').first();
       ok(await row.isVisible(), 'next instance present');
-      ok(await row.isVisible(), 'row');
-      ok((await details('Replace AC filter')).includes('Feb 6, 2027'), 'next due is 3 months after Nov 6: ' + (await row.innerText()));
+      ok((await row.innerText()).includes('Feb 6, 2027'), 'next due is 3 months after Nov 6: ' + (await row.innerText()));
     });
     await check('recurring (after completion): next one is 6 months after today, not after the old due date', async () => {
       await page.getByRole('checkbox', { name: /Mark “Test smoke alarms” done/ }).click();
       await page.waitForTimeout(400);
       const row = taskRow('Test smoke alarms').first();
-      ok((await details('Test smoke alarms')).includes('Apr 25, 2027'), 'next due: ' + (await row.innerText()));
+      ok((await row.innerText()).includes('Apr 25, 2027'), 'next due: ' + (await row.innerText()));
     });
     await check('toast: the Undo button stays on one line', async () => {
       const box = await page.locator('.toast-action').first().boundingBox();
@@ -683,7 +656,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.getByRole('button', { name: 'Undo' }).click();
       await page.waitForTimeout(400);
       eq(await taskRow('Test smoke alarms').count(), 1, 'one smoke-alarm task after undo');
-      ok((await details('Test smoke alarms')).includes('overdue'), 'back to overdue');
+      ok((await taskRow('Test smoke alarms').first().innerText()).includes('overdue'), 'back to overdue');
     });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();
