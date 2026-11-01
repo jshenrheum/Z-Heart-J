@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ListItem, SharedList } from '../src/data/types.ts';
-import { itemSub, recentMatches } from '../src/lib/lists.ts';
+import { itemSub, listWords, recentMatches } from '../src/lib/lists.ts';
 
 let n = 0;
 const item = (name: string, over: Partial<ListItem> = {}): ListItem => ({
@@ -46,4 +46,13 @@ test('a tile’s second line joins quantity and details', () => {
   assert.equal(itemSub(item('Milk', { qty: '1 gal' })), '1 gal');
   assert.equal(itemSub(item('Cheese', { qty: '2', note: 'Shredded' })), '2 · Shredded');
   assert.equal(itemSub(item('Rice')), '');
+});
+
+test('a list’s words follow what it is: shopping, recipes, or just a list', () => {
+  assert.equal(listWords('Groceries').open, 'To get');
+  assert.equal(listWords('Groceries').placeholder, 'I need…');
+  assert.equal(listWords('Recipes').open, 'To make');
+  assert.equal(listWords('To do').open, 'List');
+  assert.equal(listWords('To do').recent, 'Done');
+  assert.equal(listWords('Packing').placeholder, 'Add an item…');
 });
