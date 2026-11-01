@@ -275,6 +275,7 @@ function AddMenu() {
       { label: 'Add work location', icon: 'building', run: () => forms.open({ kind: 'location', owner: me }) },
       { label: 'Add credential', icon: 'lock', run: () => forms.open({ kind: 'credential', owner: me }) },
       { label: 'Add contact', icon: 'phone', run: () => forms.open({ kind: 'contact' }) },
+      { label: 'Add vehicle', icon: 'car', run: () => forms.open({ kind: 'vehicle' }) },
       info,
     ];
   } else if (path.startsWith('/lists')) {

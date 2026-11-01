@@ -2,6 +2,7 @@ import type { Assignee, CalendarEvent, Household, MemberId } from '../data/types
 import { addDays, addMonthsClamped, diffDays, parseDate, type DateStr } from './dates.ts';
 import { WEDDING_ID } from './records.ts';
 import { routes } from './routes.ts';
+import { vehicleDates } from './vehicles.ts';
 
 /**
  * The shared calendar: events, plus everything else in the household that has a
@@ -9,7 +10,7 @@ import { routes } from './routes.ts';
  * nothing is entered twice. Pure functions over the household; no network.
  */
 
-export type CalSource = 'event' | 'task' | 'plan' | 'credential' | 'wedding' | 'deposit';
+export type CalSource = 'event' | 'task' | 'plan' | 'credential' | 'wedding' | 'deposit' | 'vehicle';
 
 export interface CalItem {
   /** Unique per occurrence. */
@@ -117,6 +118,13 @@ export function calendarItems(h: Household, from: DateStr, to: DateStr, who: Who
   for (const v of h.vendors) {
     if (v.deposit !== 'due' || !inRange(v.depositDue)) continue;
     items.push({ key: `deposit:${v.id}`, source: 'deposit', id: v.id, title: `Deposit due · ${v.name}`, whose: 'both', date: v.depositDue!, sub: 'Wedding vendor', route: routes.weddingTab('vendors') });
+  }
+  for (const r of h.home) {
+    if (r.template !== 'vehicle') continue;
+    for (const d of vehicleDates(r)) {
+      if (!inRange(d.date)) continue;
+      items.push({ key: `vehicle:${r.id}:${d.id}`, source: 'vehicle', id: r.id, title: `${d.label} · ${r.title}`, whose: 'both', date: d.date, sub: 'Vehicle', route: routes.record(r.id) });
+    }
   }
   for (const c of h.credentials) {
     if (!inRange(c.expires) || !matchesWho(c.owner, who)) continue;

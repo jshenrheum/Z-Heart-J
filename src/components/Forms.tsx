@@ -8,6 +8,7 @@ import { routes } from '../lib/routes.ts';
 import type { RecurrenceMode, RecurrenceUnit } from '../lib/recurrence.ts';
 import { todayIn } from '../lib/dates.ts';
 import { BUDGET_CATEGORIES, parseMoney, VENDOR_CATEGORIES } from '../lib/wedding.ts';
+import { VEHICLE_FIELDS, vehicleSpec } from '../lib/vehicles.ts';
 import type { DepositStatus, Rsvp, VendorStatus } from '../data/types.ts';
 import type { EventRepeat } from '../data/types.ts';
 import { Icon } from './Icon.tsx';
@@ -19,6 +20,7 @@ export type FormRequest =
   | { kind: 'task'; id?: string; prefill?: Partial<Values> }
   | { kind: 'contact'; id?: string }
   | { kind: 'home'; id: string }
+  | { kind: 'vehicle'; id?: string }
   | { kind: 'field'; recordId: string }
   | { kind: 'info'; title?: string }
   | { kind: 'location'; owner: MemberId; id?: string }
@@ -55,6 +57,7 @@ export function FormsProvider({ children }: { children: ReactNode }) {
       {req?.kind === 'task' && <TaskForm id={req.id} prefill={req.prefill} onClose={close} />}
       {req?.kind === 'contact' && <ContactForm id={req.id} onClose={close} />}
       {req?.kind === 'home' && <HomeRecordForm id={req.id} onClose={close} />}
+      {req?.kind === 'vehicle' && <VehicleForm id={req.id} onClose={close} />}
       {req?.kind === 'field' && <FieldForm recordId={req.recordId} onClose={close} />}
       {req?.kind === 'info' && <InfoForm title={req.title} onClose={close} />}
       {req?.kind === 'location' && <LocationForm owner={req.owner} id={req.id} onClose={close} />}
@@ -320,7 +323,7 @@ function InfoForm({ title, onClose }: { title?: string; onClose: () => void }) {
   const { toast } = useFeedback();
   const fields: FieldDef[] = [
     { name: 'title', label: 'Title', required: true, maxLength: 100, placeholder: 'e.g. Trash pickup days' },
-    { name: 'template', label: 'Category', type: 'select', options: (Object.keys(HOME_TEMPLATE_LABEL) as HomeTemplate[]).map((t) => ({ value: t, label: HOME_TEMPLATE_LABEL[t] })).sort((a, b) => (a.value === 'other' ? -1 : b.value === 'other' ? 1 : 0)) },
+    { name: 'template', label: 'Category', type: 'select', options: (Object.keys(HOME_TEMPLATE_LABEL) as HomeTemplate[]).filter((t) => t !== 'vehicle').map((t) => ({ value: t, label: HOME_TEMPLATE_LABEL[t] })).sort((a, b) => (a.value === 'other' ? -1 : b.value === 'other' ? 1 : 0)) },
     { name: 'details', label: 'Details', type: 'textarea', maxLength: 300, hint: 'Passwords, recovery codes, and bank logins belong in your password manager — name the entry here instead.' },
   ];
   return (
@@ -765,6 +768,48 @@ function MomentForm({ id, onClose }: { id?: string; onClose: () => void }) {
         if (r.ok) {
           toast(existing ? 'Moment saved.' : 'Moment added.');
           if (!existing) navigate(routes.story, { state: { focusMoment: r.value }, keepScroll: true });
+        }
+        return done(r);
+      }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ vehicles
+
+/** Every vehicle category in one form; a blank one is simply left off the card. */
+function VehicleForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { state, actions } = useStore();
+  const { toast } = useFeedback();
+  const rec = id ? state.home.find((r) => r.id === id) : undefined;
+  const typeOf = (k: string): FieldDef['type'] => (k === 'phone' ? 'tel' : k === 'date' ? 'date' : 'text');
+  const fields: FieldDef[] = [
+    { name: 'title', label: 'Name', required: true, maxLength: 100, placeholder: 'e.g. Jeffrey’s car, The SUV' },
+    ...VEHICLE_FIELDS.map((s): FieldDef =>
+      s.id === 'v-driver'
+        ? { name: s.id, label: s.label, type: 'select', options: [{ value: '', label: 'Not set' }, ...MEMBER_IDS.map((m) => ({ value: MEMBERS[m].name, label: MEMBERS[m].name })), { value: 'Both of us', label: 'Both of us' }] }
+        : { name: s.id, label: s.label, type: typeOf(s.kind), maxLength: s.id === 'v-vin' ? 17 : 100, placeholder: s.placeholder, hint: s.group !== VEHICLE_FIELDS[VEHICLE_FIELDS.indexOf(s) - 1]?.group ? s.group : undefined, validate: s.kind === 'phone' ? (v: string) => validateByKind('phone', v) : undefined },
+    ),
+    { name: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000 },
+  ];
+  const initial: Values = { title: rec?.title ?? '', notes: rec?.notes ?? '' };
+  for (const s of VEHICLE_FIELDS) initial[s.id] = rec?.fields.find((f) => f.id === s.id && !f.protected)?.value ?? '';
+  return (
+    <FormSheet
+      title={rec ? `Edit ${rec.title}` : 'Add a vehicle'}
+      fields={fields}
+      initial={initial}
+      submitLabel={rec ? 'Save changes' : 'Add vehicle'}
+      note={`${SHARED} Fill in what you have; blank ones stay off the card.${rec?.fields.some((f) => !vehicleSpec(f.id)) ? ' Fields you added yourself are kept as they are.' : ''}`}
+      onClose={onClose}
+      extraAction={rec && <TrashButton id={rec.id} what={`“${rec.title}”`} after={routes.info} onClose={onClose} />}
+      onSubmit={async (v) => {
+        const known = VEHICLE_FIELDS.filter((s) => (v[s.id] ?? '').trim()).map((s) => ({ id: s.id, label: s.label, kind: s.kind, value: (v[s.id] ?? '').trim() }));
+        const own = (rec?.fields ?? []).filter((f) => !vehicleSpec(f.id));
+        const r = await actions.saveVehicle(rec?.id ?? null, { title: v.title ?? '', notes: v.notes ?? '', fields: [...known, ...own] });
+        if (r.ok) {
+          toast(rec ? 'Vehicle saved.' : 'Vehicle added.');
+          if (!rec) navigate(routes.record(r.value));
         }
         return done(r);
       }}

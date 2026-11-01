@@ -110,6 +110,8 @@ export interface Actions {
   saveProfile: (id: MemberId, v: ProfileInput) => Promise<Outcome>;
   saveCredential: (id: string | null, owner: MemberId, v: CredentialInput) => Promise<Outcome<string>>;
   addInfo: (v: { template: HomeTemplate; title: string; details: string; notes: string }) => Promise<Outcome<string>>;
+  /** A vehicle: a home card of the vehicle template, created or saved with its fields. */
+  saveVehicle: (id: string | null, v: { title: string; notes: string; fields: HomeField[] }) => Promise<Outcome<string>>;
   saveEvent: (id: string | null, v: EventInput) => Promise<Outcome<string>>;
   saveWedding: (v: WeddingInput) => Promise<Outcome>;
   saveMoment: (id: string | null, v: MomentInput) => Promise<Outcome<string>>;
@@ -669,6 +671,16 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         const fields = v.details.trim() ? [{ id: newRowId('f'), label: 'Details', kind: 'text', value: v.details.trim() }] : [];
         const id = newRowId('home');
         return create(`“${v.title.trim()}” wasn’t saved`, 'home', id, { template: v.template, title: v.title.trim(), fields, notes: v.notes.trim() }, { quiet: true, value: () => id });
+      },
+
+      async saveVehicle(id, v) {
+        if (id) {
+          const r = await a.saveHomeRecord(id, v);
+          return r.ok ? { ok: true, value: id } : r;
+        }
+        const nid = newRowId('car');
+        const fields = v.fields.map((f) => ({ id: f.id, label: f.label, kind: f.kind, value: f.value ?? '' }));
+        return create(`“${v.title.trim()}” wasn’t saved`, 'home', nid, { template: 'vehicle', title: v.title.trim(), fields, notes: v.notes.trim() }, { quiet: true, value: () => nid });
       },
 
       async saveEvent(id, v) {

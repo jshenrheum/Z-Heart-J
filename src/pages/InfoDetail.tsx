@@ -14,6 +14,9 @@ import { ProtectedValue } from '../components/ProtectedValue.tsx';
 import { CardLink, Chip, ConfirmDialog, PageHeader, PinButton, Section, UpdatedBy, ValueRow } from '../components/ui.tsx';
 import { expiryChip } from './Info.tsx';
 import { NotFound } from './NotFound.tsx';
+import { VEHICLE_FIELDS, VEHICLE_GROUPS, vehicleSpec } from '../lib/vehicles.ts';
+
+const order = (id: string) => { const i = VEHICLE_FIELDS.findIndex((s) => s.id === id); return i < 0 ? 999 : i; };
 
 export function InfoDetailPage({ id }: { id: string }) {
   const { state } = useStore();
@@ -237,31 +240,40 @@ function HomeDetail({ id }: { id: string }) {
   const rec = state.home.find((r) => r.id === id);
   if (!rec) return <NotFound what="card" />;
   const removingField = rec.fields.find((f) => f.id === removing);
+  const field = (f: (typeof rec.fields)[number]) =>
+    f.protected ? (
+      <ProtectedValue key={f.id} recordId={rec.id} slot={f.id} label={f.label} hasValue={!!f.hasValue} onRemoveField={() => setRemoving(f.id)} />
+    ) : (
+      <ValueRow key={f.id} label={f.label} kind={f.kind} value={f.value} />
+    );
   return (
     <div className="page">
       <PageHeader
         title={rec.title}
         sub={<span className="chip-row"><Chip icon={HOME_ICON[rec.template]}>{HOME_TEMPLATE_LABEL[rec.template]}</Chip></span>}
-        back={{ to: `${routes.info}?who=home`, label: 'Home' }}
+        back={rec.template === 'vehicle' ? { to: routes.info, label: 'Our Info' } : { to: `${routes.info}?who=home`, label: 'Home' }}
         actions={
           <>
             <PinButton target={{ kind: 'record', id: rec.id }} />
-            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'home', id: rec.id })}>
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open(rec.template === 'vehicle' ? { kind: 'vehicle', id: rec.id } : { kind: 'home', id: rec.id })}>
               <Icon name="edit" size={17} /> Edit
             </button>
           </>
         }
       />
-      {rec.fields.length > 0 ? (
-        <div className="card rows">
-          {rec.fields.map((f) =>
-            f.protected ? (
-              <ProtectedValue key={f.id} recordId={rec.id} slot={f.id} label={f.label} hasValue={!!f.hasValue} onRemoveField={() => setRemoving(f.id)} />
-            ) : (
-              <ValueRow key={f.id} label={f.label} kind={f.kind} value={f.value} />
-            ),
-          )}
-        </div>
+      {rec.fields.length > 0 && rec.template === 'vehicle' ? (
+        // A vehicle's details by category, in the form's order; fields added by hand under More.
+        [...VEHICLE_GROUPS, 'More' as const].map((g) => {
+          const fs = rec.fields.filter((f) => (vehicleSpec(f.id)?.group ?? 'More') === g).sort((a, b) => order(a.id) - order(b.id));
+          if (!fs.length) return null;
+          return (
+            <Section title={g} key={g} id={`v-${g.toLowerCase().replace(/\W+/g, '-')}`}>
+              <div className="card rows">{fs.map(field)}</div>
+            </Section>
+          );
+        })
+      ) : rec.fields.length > 0 ? (
+        <div className="card rows">{rec.fields.map(field)}</div>
       ) : (
         <p className="muted">No details yet.</p>
       )}

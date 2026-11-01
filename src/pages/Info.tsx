@@ -10,6 +10,7 @@ import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { CardLink, Chip, EmptyState, FilterChips, PageHeader, Section } from '../components/ui.tsx';
 import type { ReactNode } from 'react';
+import { vehicleDates, vehicleSummary } from '../lib/vehicles.ts';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -19,7 +20,7 @@ const FILTERS = [
 ] as const;
 type Who = (typeof FILTERS)[number]['key'];
 
-const HOME_ORDER: HomeTemplate[] = ['address', 'utility', 'internet', 'maintenance', 'vehicle', 'pet', 'emergency', 'other'];
+const HOME_ORDER: HomeTemplate[] = ['address', 'utility', 'internet', 'maintenance', 'pet', 'emergency', 'other'];
 
 export function expiryChip(expires: DateStr | undefined, today: DateStr): ReactNode {
   if (!expires) return null;
@@ -29,8 +30,17 @@ export function expiryChip(expires: DateStr | undefined, today: DateStr): ReactN
   return <Chip icon="calendar">Expires {displayDate(expires, today)}</Chip>;
 }
 
+/** "Registration renews in 12 days" and the like. */
+function dueChip(label: string, date: DateStr, today: DateStr): ReactNode {
+  const n = diffDays(date, today);
+  if (n < 0) return <Chip tone="warn" icon="calendar">{label} · overdue</Chip>;
+  if (n <= 60) return <Chip tone="heart" icon="calendar">{label} in {n} day{n === 1 ? '' : 's'}</Chip>;
+  return <Chip icon="calendar">{label} {displayDate(date, today)}</Chip>;
+}
+
 export function InfoPage() {
   const { state, today } = useStore();
+  const forms = useForms();
   const { query } = useRoute();
   const raw = query.get('who');
   const who: Who = FILTERS.some((f) => f.key === raw) ? (raw as Who) : 'all';
@@ -70,6 +80,28 @@ export function InfoPage() {
     );
   };
 
+  const vehicles = state.home.filter((r) => r.template === 'vehicle');
+  const vehicleBlock = () => (
+    <div className="group">
+      <div className="section-head">
+        <h2 className="group-title">Vehicles</h2>
+        <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'vehicle' })}>
+          <Icon name="plus" size={17} /> Add vehicle
+        </button>
+      </div>
+      {vehicles.length ? (
+        <div className="stack">
+          {vehicles.map((r) => {
+            const next = vehicleDates(r).sort((a, b) => a.date.localeCompare(b.date))[0];
+            return <CardLink key={r.id} to={routes.record(r.id)} icon="car" title={r.title} sub={vehicleSummary(r) || undefined} meta={next ? <span className="chip-row">{dueChip(next.label, next.date, today)}</span> : undefined} />;
+          })}
+        </div>
+      ) : (
+        <p className="muted">Make, model, plate, VIN, registration, insurance and service, in one place.</p>
+      )}
+    </div>
+  );
+
   const homeBlocks = () => {
     const groups = HOME_ORDER.map((t) => ({ t, items: state.home.filter((r) => r.template === t) })).filter((g) => g.items.length > 0);
     if (groups.length === 0) return <EmptyState title="Nothing saved about home yet." body="Use Add → Add information to start." />;
@@ -102,6 +134,7 @@ export function InfoPage() {
               {personBlocks(m, true)}
             </div>
           ))}
+          {vehicleBlock()}
           <div className="group">
             <h2 className="group-title">Home</h2>
             {homeBlocks()}
@@ -109,7 +142,12 @@ export function InfoPage() {
         </>
       )}
       {(who === 'jeffrey' || who === 'zul') && personBlocks(who, false)}
-      {who === 'home' && homeBlocks()}
+      {who === 'home' && (
+        <>
+          {vehicleBlock()}
+          {homeBlocks()}
+        </>
+      )}
     </div>
   );
 }

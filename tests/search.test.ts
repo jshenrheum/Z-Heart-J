@@ -53,8 +53,8 @@ test('protected values cannot reach the index even if one is smuggled into the d
   const dirty = makeDemoHousehold(TODAY);
   (dirty.credentials[0] as unknown as Record<string, unknown>).number = 'DEA-SECRET-12345';
   (dirty.credentials[0] as unknown as Record<string, unknown>).value = 'DEA-SECRET-12345';
-  const plate = dirty.home.find((r) => r.id === 'home-vehicle')!.fields.find((f) => f.protected)!;
-  plate.value = 'PLATE-SECRET-999'; // should never exist, but the index must still ignore it
+  const pin = dirty.home.find((r) => r.id === 'home-vehicle')!.fields.find((f) => f.protected)!;
+  pin.value = 'PLATE-SECRET-999'; // should never exist, but the index must still ignore it
   const idx = buildIndex(dirty, TODAY);
   const blob = JSON.stringify(idx);
   assert.ok(!blob.includes('DEA-SECRET-12345'));
@@ -62,9 +62,10 @@ test('protected values cannot reach the index even if one is smuggled into the d
   assert.equal(search(idx, 'DEA-SECRET-12345', { me: 'jeffrey' }).results.length, 0);
   assert.equal(search(idx, 'PLATE-SECRET-999', { me: 'jeffrey' }).results.length, 0);
   // but the protected field's label is findable, with its status
-  const plateHit = search(idx, 'plate', { me: 'jeffrey' }).results[0]?.doc;
-  assert.equal(plateHit?.value, undefined);
-  assert.match(plateHit?.protectedNote ?? '', /Protected/);
+  const pinHit = search(idx, 'fob pin', { me: 'jeffrey' }).results[0]?.doc;
+  assert.equal(pinHit?.title, 'Key fob PIN');
+  assert.equal(pinHit?.value, undefined);
+  assert.match(pinHit?.protectedNote ?? '', /Protected/);
 });
 
 test('phone digits are normalised for search while the display format is preserved', () => {

@@ -516,6 +516,43 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
     await ctx.close();
   }
 
+  // ---------------------------------------------------------------- vehicles
+  {
+    const { ctx, page } = await newPage();
+    await open(page, '/info');
+    await check('vehicles: Our Info has a Vehicles section; a card groups its details by category', async () => {
+      await page.getByRole('link', { name: /Demo car/ }).first().click();
+      const sections = await page.$$eval('main .section-title', (e) => e.map((x) => x.textContent.trim().replace(/\d+$/, '')));
+      ok(['The car', 'Registration', 'Insurance', 'Service'].every((g) => sections.some((s) => s.toLowerCase().startsWith(g.toLowerCase()))), JSON.stringify(sections));
+      ok(await page.getByRole('link', { name: /Call insurance phone/i }).isVisible(), 'insurance phone can be called');
+    });
+    await check('vehicles: add one with the form; blank categories stay off the card; its registration date is on the calendar', async () => {
+      await nav(page, 'Our Info').click();
+      await page.getByRole('button', { name: 'Add vehicle' }).first().click();
+      const d = page.getByRole('dialog');
+      await d.getByLabel(/^Name/).fill('Test SUV');
+      await d.getByLabel(/^Driven by/).selectOption('Zul');
+      await d.getByLabel(/^Make/).fill('Example');
+      await d.getByLabel(/^Model/).fill('Crossover');
+      await d.getByLabel(/^Year/).fill('2024');
+      await d.getByLabel(/^License plate/).fill('TEST 123');
+      await d.getByLabel(/^Registration renews/).fill('2026-10-30');
+      await d.getByRole('button', { name: 'Add vehicle' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      await page.getByRole('heading', { name: 'Test SUV' }).waitFor();
+      const text = await page.innerText('main');
+      ok(text.includes('TEST 123') && text.includes('Crossover'), 'details shown');
+      ok(!text.includes('Insurance company'), 'blank categories are left off');
+      await nav(page, 'Our Info').click();
+      ok((await page.getByRole('link', { name: /Test SUV/ }).innerText()).includes('2024 Example Crossover · TEST 123'), 'summary on the card');
+      await nav(page, 'Calendar').click();
+      await page.getByRole('button', { name: /^Friday, October 30/ }).click();
+      ok((await page.locator('section', { has: page.locator('#cal-day-h') }).innerText()).includes('Registration renews · Test SUV'), 'on the calendar');
+    });
+    await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
+    await ctx.close();
+  }
+
   // ---------------------------------------------------------------- wedding
   {
     const { ctx, page } = await newPage();
