@@ -42,6 +42,7 @@ const pairs = [
   ...[['bg', L.wedBg], ['surface', L.wedSurface], ['surface-3', L.wedSurface3]].flatMap(([n, b]) => [[`wedding text on ${n}`, L.wedText, b, 4.5], [`wedding muted on ${n}`, L.wedMuted, b, 4.5], [`wedding accent on ${n}`, L.wedAccent, b, 4.5]]),
   ['wedding secondary text on surface', L.wedText2, L.wedSurface, 4.5], ['wedding input border on bg', L.wedBorder, L.wedBg, 3], ['wedding focus ring on surface', T.focus, L.wedSurface, 3],
   ['wedding primary button text', T['on-primary'], T.primary, 4.5], ['wedding heart label on surface', T.heart, L.wedSurface, 4.5],
+  ['task overdue text on surface', T.warn, T.surface, 4.5], ['task done text on surface', T.good, T.surface, 4.5], ['task due-soon text on surface', T.heart, T.surface, 4.5],
   ['unchecked circle on surface', T.muted, T.surface, 3], ['checked circle on surface', T.primary, T.surface, 3], ['toggle accent on surface', T.accent, T.surface, 3],
 ];
 let failed = 0;

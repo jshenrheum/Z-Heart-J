@@ -6,7 +6,6 @@ import { Link } from '../lib/router.tsx';
 import { routes } from '../lib/routes.ts';
 import { useForms } from './Forms.tsx';
 import { Icon } from './Icon.tsx';
-import { Chip } from './ui.tsx';
 
 export function assigneeLabel(a: Task['assignee']) {
   return a === 'both' ? 'Both' : MEMBERS[a].name;
@@ -41,24 +40,21 @@ export function TaskRow({ task, showPlan = true }: { task: Task; showPlan?: bool
         <button type="button" className="task-title task-edit" onClick={() => forms.open({ kind: 'task', id: task.id })} aria-label={`Edit “${task.title}”`}>
           {task.title}
         </button>
+        {/* One quiet line of plain text, never pill-shaped labels: who, when, repeats, plan. */}
         <span className="task-meta">
-          <Chip>{assigneeLabel(task.assignee)}</Chip>
+          <span>{assigneeLabel(task.assignee)}</span>
           {done && task.completedOn ? (
-            <Chip tone="good" icon="check">
-              Done {displayDate(task.completedOn, today)}
-            </Chip>
+            <span className="t-good">Done {displayDate(task.completedOn, today)}</span>
           ) : task.due ? (
-            <Chip tone={st === 'overdue' ? 'warn' : st === 'today' || st === 'soon' ? 'heart' : 'neutral'} icon={st === 'overdue' ? 'calendar' : undefined}>
-              {dueText(task.due, today)}
-            </Chip>
-          ) : (
-            <span className="muted small">No date</span>
-          )}
+            <span className={st === 'overdue' ? 't-warn' : st === 'today' || st === 'soon' ? 't-heart' : undefined}>{dueText(task.due, today)}</span>
+          ) : null}
           {task.recurrence && (
-            <Chip icon="repeat">{describeRecurrence(task.recurrence)}</Chip>
+            <span className="task-repeat">
+              <Icon name="repeat" size={12} /> {describeRecurrence(task.recurrence)}
+            </span>
           )}
           {plan && (
-            <Link to={routes.plan(plan.id)} className="inline-link small task-plan-link">
+            <Link to={routes.plan(plan.id)} className="task-plan-link">
               {plan.title}
             </Link>
           )}

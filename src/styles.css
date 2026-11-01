@@ -527,11 +527,20 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .check[aria-checked="true"]::before { background: var(--primary); border-color: var(--primary); }
 .check:active::before { transform: scale(0.9); }
 .check svg { position: absolute; color: var(--on-primary); }
-.task-body { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 8px 6px 8px 0; }
+.task-body { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 6px 6px 6px 0; }
 .task-title { font-weight: 500; }
 .task-edit { justify-self: start; min-height: 44px; margin: -10px 0 -8px -6px; padding: 0 6px; text-align: left; font: inherit; font-weight: 500; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: background var(--t); }
 .task-edit:hover { background: var(--surface-2); }
-.task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.task-meta { display: flex; flex-wrap: wrap; align-items: center; font-size: 0.8125rem; line-height: 1.4; color: var(--muted); }
+.task-meta > * { white-space: nowrap; }
+.task-meta > *:not(:last-child)::after { content: "·"; margin: 0 6px; color: var(--faint); }
+.task-meta .t-warn { color: var(--warn); }
+.task-meta .t-heart { color: var(--heart); }
+.task-meta .t-good { color: var(--good); }
+.task-repeat { display: inline-flex; align-items: center; gap: 4px; }
+.task-repeat svg { color: var(--faint); }
+.task-plan-link { color: var(--accent); text-decoration: none; }
+.task-plan-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .task-notes { font-size: 0.8125rem; color: var(--muted); }
 
 /* ------------------------------------------------------------------ calendar */
