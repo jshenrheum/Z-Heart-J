@@ -12,10 +12,10 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const token = (name) => { const m = css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`)); if (!m) throw new Error(`token --${name} not found in styles.css`); return m[1].toUpperCase(); };
 const T = Object.fromEntries(
-  ['bg', 'bg-elev', 'surface', 'surface-2', 'surface-3', 'text', 'text-2', 'muted', 'primary', 'on-primary', 'accent', 'heart', 'danger', 'danger-bg', 'good', 'warn', 'input-border', 'focus', 'ink', 'ink-2'].map((n) => [n, token(n)]),
+  ['bg', 'bg-elev', 'surface', 'surface-2', 'surface-3', 'text', 'text-2', 'muted', 'primary', 'on-primary', 'accent', 'heart', 'danger', 'danger-bg', 'good', 'warn', 'input-border', 'focus', 'ink', 'ink-2', 'ink-3'].map((n) => [n, token(n)]),
 );
 // Literal tints that live in rules rather than tokens: they must really be in the stylesheet.
-const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910', porcelainLow: '#E8E5DE', recentTile: '#17181B', dockField: '#0F1012', wedBg: '#1A0912', wedSurface: '#2A1220', wedSurface3: '#421F35', wedText: '#FBF3F7', wedText2: '#EBD3DE', wedMuted: '#C19BAD', wedBorder: '#8E6A7E', wedAccent: '#E9B9C8' };
+const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910', porcelainLow: '#E8E5DE', recentTile: '#17181B', dockField: '#0F1012', listLight: '#F1EFEA', wedBg: '#1A0912', wedSurface: '#2A1220', wedSurface3: '#421F35', wedText: '#FBF3F7', wedText2: '#EBD3DE', wedMuted: '#C19BAD', wedBorder: '#8E6A7E', wedAccent: '#E9B9C8' };
 for (const hex of Object.values(L)) if (!css.toUpperCase().includes(hex)) throw new Error(`${hex} is no longer used in styles.css; update this script`);
 
 const pairs = [
@@ -43,6 +43,7 @@ const pairs = [
   ['wedding secondary text on surface', L.wedText2, L.wedSurface, 4.5], ['wedding input border on bg', L.wedBorder, L.wedBg, 3], ['wedding focus ring on surface', T.focus, L.wedSurface, 3],
   ['wedding primary button text', T['on-primary'], T.primary, 4.5], ['wedding heart label on surface', T.heart, L.wedSurface, 4.5],
   ['task overdue text on surface', T.warn, T.surface, 4.5], ['task done text on surface', T.good, T.surface, 4.5], ['task due-soon text on surface', T.heart, T.surface, 4.5],
+  ['list name on off-white', T.ink, L.listLight, 4.5], ['list details on off-white', T['ink-2'], L.listLight, 4.5], ['list circle and arrow on off-white', T['ink-3'], L.listLight, 3], ['list focus ring on off-white', T.ink, L.listLight, 3],
   ['unchecked circle on surface', T.muted, T.surface, 3], ['checked circle on surface', T.primary, T.surface, 3], ['toggle accent on surface', T.accent, T.surface, 3],
 ];
 let failed = 0;

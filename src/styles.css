@@ -36,6 +36,7 @@
   --focus: #F7F8F8;
   --ink: #0B0C0E;   /* type on porcelain tiles */
   --ink-2: #4A4D55; /* secondary type on porcelain */
+  --ink-3: #6B6E76; /* circles and arrows on porcelain */
 
   --radius: 12px;
   --radius-sm: 10px;
@@ -491,6 +492,25 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .li-note { white-space: pre-line; }
 .li-details .btn { margin-top: 4px; }
 .li-list { list-style: none; padding: 4px 8px; }
+/* What's still to get or do: an off-white card with black type (done items stay dark beneath). */
+.li-light {
+  color: var(--ink);
+  background: linear-gradient(180deg, #FAF9F6 0%, #F1EFEA 100%);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 30px -18px rgba(0, 0, 0, 0.9);
+}
+.li-light .li-row + .li-row { border-top-color: rgba(0, 0, 0, 0.08); }
+.li-light .li-name { color: var(--ink); }
+.li-light .li-chev { color: var(--ink-3); }
+.li-light .li-details { color: var(--ink-2); }
+.li-light .li-details .muted { color: var(--ink-2); }
+.li-light .check::before { border-color: var(--ink-3); }
+.li-light .check:hover::before { border-color: var(--ink); }
+.li-light .check[aria-checked="true"]::before { background: var(--ink); border-color: var(--ink); }
+.li-light .check svg { color: #FAF9F6; }
+.li-light .li-line:focus-visible, .li-light .check:focus-visible, .li-light .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.li-light .btn-quiet { color: var(--ink); background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); }
+.li-light .btn-quiet:hover { background: rgba(0, 0, 0, 0.08); }
 @keyframes drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* ------------------------------------------------------------------ "I need…" dock */

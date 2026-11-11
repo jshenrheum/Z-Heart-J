@@ -167,7 +167,7 @@ export function ListPage({ id }: { id: string }) {
         </div>
         {open.length > 0 ? (
           <>
-            <ul className="li-list card" id="to-get">
+            <ul className="li-list li-light card" id="to-get">
               {shown.map(row)}
             </ul>
             <p className="tile-hint">{words.hint}</p>
