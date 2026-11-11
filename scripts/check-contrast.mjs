@@ -15,7 +15,7 @@ const T = Object.fromEntries(
   ['bg', 'bg-elev', 'surface', 'surface-2', 'surface-3', 'text', 'text-2', 'muted', 'primary', 'on-primary', 'accent', 'heart', 'danger', 'danger-bg', 'good', 'warn', 'input-border', 'focus', 'ink', 'ink-2', 'ink-3'].map((n) => [n, token(n)]),
 );
 // Literal tints that live in rules rather than tokens: they must really be in the stylesheet.
-const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910', porcelainLow: '#E8E5DE', recentTile: '#17181B', dockField: '#0F1012', listLight: '#F1EFEA', wedBg: '#1A0912', wedSurface: '#2A1220', wedSurface3: '#421F35', wedText: '#FBF3F7', wedText2: '#EBD3DE', wedMuted: '#C19BAD', wedBorder: '#8E6A7E', wedAccent: '#E9B9C8' };
+const L = { warnChip: '#2A1810', goodChip: '#10241A', lockChip: '#1F1B13', heartChip: '#2A161B', errorBg: '#2A1214', errorText: '#FFB4AE', demoText: '#EADFC9', demoBg: '#17140E', noteBg: '#1C1910', porcelainLow: '#E8E5DE', recentTile: '#17181B', dockField: '#14070E', listLight: '#F1EFEA', wedBg: '#1A0912', wedSurface: '#2A1220', wedSurface3: '#421F35', wedText: '#FBF3F7', wedText2: '#EBD3DE', wedMuted: '#C19BAD', wedBorder: '#8E6A7E', wedAccent: '#E9B9C8' };
 for (const hex of Object.values(L)) if (!css.toUpperCase().includes(hex)) throw new Error(`${hex} is no longer used in styles.css; update this script`);
 
 const pairs = [

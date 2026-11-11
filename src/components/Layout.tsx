@@ -33,6 +33,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   useFocusOnRouteChange(path);
 
   return (
+    <>
+    <div className="ambient" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+      <span />
+    </div>
     <div className="app">
       <a className="skip" href="#main">
         Skip to content
@@ -101,6 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       </main>
     </div>
+    </>
   );
 }
 

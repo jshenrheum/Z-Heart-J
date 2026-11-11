@@ -13,26 +13,28 @@
 
 :root {
   color-scheme: dark;
-  --bg: #08090A;
-  --bg-elev: #0C0D0F;
-  --surface: #111214;
-  --surface-2: #16171A;
-  --surface-3: #1D1E22;
-  --hairline: #202125;
-  --line: #2B2C31;
-  --text: #F7F8F8;
-  --text-2: #C9CDD3;
-  --muted: #8A8F98;
-  --faint: #5C6069;
+  /* Deep magenta, the whole app (it began as Our story's own hue). */
+  --bg: #1A0912;
+  --bg-elev: #220E19;
+  --surface: #2A1220;
+  --surface-2: #35182A;
+  --surface-3: #421F35;
+  --hairline: #3B1A2F;
+  --line: #4F2642;
+  --text: #FBF3F7;
+  --text-2: #EBD3DE;
+  --muted: #C19BAD;
+  --faint: #7D5A6D;
   --primary: #F7F8F8;
   --on-primary: #08090A;
-  --accent: #D4BC94;
+  --accent: #E9B9C8;
+  --jeffrey: #D4BC94; /* champagne: Jeffrey's colour on the calendar, apart from Zul's rose */
   --heart: #F0A3B3;
   --danger: #FF8A80;
   --danger-bg: #C8383E;
   --good: #6EDB9F;
   --warn: #FFB27A;
-  --input-border: #6B6F78; /* 3:1+ against page and card, for the edge of text fields */
+  --input-border: #8E6A7E; /* 3:1+ against page and card, for the edge of text fields */
   --focus: #F7F8F8;
   --ink: #0B0C0E;   /* type on porcelain tiles */
   --ink-2: #4A4D55; /* secondary type on porcelain */
@@ -60,7 +62,7 @@ body {
   margin: 0;
   min-height: 100dvh;
   background:
-    radial-gradient(900px 420px at 50% -180px, rgba(212, 188, 148, 0.07), transparent 70%),
+    radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%),
     var(--bg);
   color: var(--text);
   font: 400 16px/1.5 var(--font-sans);
@@ -103,7 +105,7 @@ img, svg { display: block; max-width: 100%; }
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: calc(var(--safe-top) + var(--top-gap) + 8px) 16px 8px;
-  background: rgba(8, 9, 10, 0.78);
+  background: rgba(20, 7, 14, 0.78);
   backdrop-filter: saturate(160%) blur(20px);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   border-bottom: 1px solid var(--hairline);
@@ -155,7 +157,7 @@ img, svg { display: block; max-width: 100%; }
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   display: grid; grid-template-columns: repeat(6, 1fr);
   padding: 4px 8px calc(var(--safe-bottom) + 4px);
-  background: rgba(8, 9, 10, 0.82);
+  background: rgba(20, 7, 14, 0.82);
   backdrop-filter: saturate(160%) blur(20px);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   border-top: 1px solid var(--hairline);
@@ -517,7 +519,7 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .dock {
   position: fixed; left: 0; right: 0; z-index: 25; bottom: calc(var(--nav-h) + var(--safe-bottom));
   padding: 10px 16px;
-  background: rgba(10, 11, 12, 0.86);
+  background: rgba(22, 8, 15, 0.86);
   backdrop-filter: saturate(160%) blur(20px); -webkit-backdrop-filter: saturate(160%) blur(20px);
   border-top: 1px solid var(--hairline);
 }
@@ -526,7 +528,7 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .dock-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .dock-input {
   width: 100%; min-height: 48px; padding: 0 18px; font: inherit; font-size: 1rem; color: var(--text);
-  background: #0F1012; border: 1px solid var(--input-border); border-radius: 999px; transition: border-color var(--t), box-shadow var(--t);
+  background: #14070E; border: 1px solid var(--input-border); border-radius: 999px; transition: border-color var(--t), box-shadow var(--t);
 }
 .dock-input::placeholder { color: var(--muted); opacity: 1; }
 .dock-input:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(247, 248, 248, 0.12); }
@@ -577,7 +579,7 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .task-notes { font-size: 0.8125rem; color: var(--muted); }
 
 /* ------------------------------------------------------------------ calendar */
-.whose-jeffrey { --whose: var(--accent); }
+.whose-jeffrey { --whose: var(--jeffrey); }
 .whose-zul { --whose: var(--heart); }
 .whose-both { --whose: var(--text); }
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--whose); }
@@ -656,27 +658,36 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 /* ------------------------------------------------------------------ wedding
    Our story and its Wedding folder take a deep magenta hue while open (data-theme
    on <html>, set by the page). The frame (header, tab bar) stays black. */
-:root[data-theme="story"] {
-  --bg: #1A0912;
-  --bg-elev: #220E19;
-  --surface: #2A1220;
-  --surface-2: #35182A;
-  --surface-3: #421F35;
-  --hairline: #3B1A2F;
-  --line: #4F2642;
-  --text: #FBF3F7;
-  --text-2: #EBD3DE;
-  --muted: #C19BAD;
-  --faint: #7D5A6D;
-  --input-border: #8E6A7E;
-  --accent: #E9B9C8;
-}
+
 .wed-art { margin: 0; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 48px -24px rgba(0, 0, 0, 0.8); background: var(--surface); }
 .wed-art img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
 @media (min-width: 900px) { .wed-art { max-width: 520px; } }
-:root[data-theme="story"] body { background: radial-gradient(900px 420px at 50% -180px, rgba(240, 163, 179, 0.12), transparent 70%), var(--bg); }
-:root[data-theme="story"] .wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
-:root[data-theme="story"] .chip-good { background: #173024; border-color: #27503A; }
+.wed-hero { background: radial-gradient(120% 140% at 50% -20%, rgba(240, 163, 179, 0.24), transparent 60%), var(--surface); }
+.chip-good { background: #173024; border-color: #27503A; }
+
+/* ------------------------------------------------------------------ the living background
+   Like RheumDx's: soft pools of slowly changing colour (rose, plum, violet, a
+   little champagne) drift behind the page, each fading in and out so the mix
+   keeps changing. Plain CSS, transform and opacity only (the compositor moves
+   them; nothing repaints), behind everything, never over a card. Still with
+   reduced motion. */
+.ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.app { position: relative; z-index: 1; }
+.ambient span {
+  position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, var(--c), transparent 72%);
+  will-change: transform, opacity;
+}
+.ambient span:nth-child(1) { --c: rgba(240, 120, 165, 0.30); left: -35vmax; top: -30vmax; animation: amb-a 38s ease-in-out infinite alternate, amb-fade 23s ease-in-out infinite alternate; }
+.ambient span:nth-child(2) { --c: rgba(150, 90, 220, 0.24); right: -40vmax; top: 10vh; animation: amb-b 46s ease-in-out infinite alternate, amb-fade 29s ease-in-out -9s infinite alternate; }
+.ambient span:nth-child(3) { --c: rgba(212, 188, 148, 0.18); left: -20vmax; bottom: -45vmax; animation: amb-c 52s ease-in-out infinite alternate, amb-fade 31s ease-in-out -17s infinite alternate; }
+.ambient span:nth-child(4) { --c: rgba(200, 60, 120, 0.26); right: -30vmax; bottom: -35vmax; animation: amb-d 42s ease-in-out infinite alternate, amb-fade 27s ease-in-out -4s infinite alternate; }
+@keyframes amb-a { to { transform: translate(30vw, 25vh) scale(1.15); } }
+@keyframes amb-b { to { transform: translate(-35vw, 30vh) scale(0.9); } }
+@keyframes amb-c { to { transform: translate(40vw, -30vh) scale(1.1); } }
+@keyframes amb-d { to { transform: translate(-25vw, -40vh) scale(1.2); } }
+@keyframes amb-fade { 0% { opacity: 0.25; } 50% { opacity: 1; } 100% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .ambient span { animation: none !important; opacity: 0.6; } }
 
 
 .wed-hero {
