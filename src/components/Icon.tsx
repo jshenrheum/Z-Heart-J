@@ -1,7 +1,7 @@
 export type IconName =
   | 'home' | 'info' | 'list' | 'plan' | 'search' | 'plus' | 'copy' | 'phone' | 'pin' | 'map' | 'mail' | 'globe' | 'lock'
   | 'chevron' | 'check' | 'undo' | 'user' | 'x' | 'arrowUp' | 'arrowDown' | 'trash' | 'calendar' | 'refresh' | 'edit'
-  | 'fax' | 'building' | 'wifi' | 'paw' | 'car' | 'bolt' | 'wrench' | 'heart' | 'repeat' | 'download' | 'eye' | 'logout';
+  | 'fax' | 'building' | 'wifi' | 'paw' | 'car' | 'bolt' | 'wrench' | 'heart' | 'repeat' | 'download' | 'eye' | 'logout' | 'more' | 'grip';
 
 const PATHS: Record<IconName, string> = {
   eye: 'M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
@@ -40,6 +40,8 @@ const PATHS: Record<IconName, string> = {
   heart: 'M12 19.5C6.5 15.8 4 12.8 4 9.8a3.8 3.8 0 0 1 6.7-2.5L12 8.8l1.3-1.5A3.8 3.8 0 0 1 20 9.8c0 3-2.5 6-8 9.7Z',
   repeat: 'M5 11V9.5A2.5 2.5 0 0 1 7.5 7H18 M15.5 4.5 18 7l-2.5 2.5 M19 13v1.5a2.5 2.5 0 0 1-2.5 2.5H6 M8.5 19.5 6 17l2.5-2.5',
   download: 'M12 4.5v11 M7 11l5 5 5-5 M5 19.5h14',
+  grip: 'M7.8 7a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z M13.8 7a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z M7.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z M13.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z M7.8 17a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z M13.8 17a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0Z',
+  more: 'M4.6 12a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0Z M10.6 12a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0Z M16.6 12a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0Z',
 };
 
 export function Icon({ name, size = 22, className }: { name: IconName; size?: number; className?: string }) {

@@ -93,11 +93,18 @@ export interface NewTask {
 export interface Actions {
   /** Adds an item, or puts back a recently used one of the same name instead of making a second. */
   addItem: (listId: string, name: string, qty?: string, note?: string) => Promise<boolean>;
-  toggleItem: (listId: string, itemId: string) => Promise<boolean>;
+  /**
+   * Ticks an item off, or puts it back. `want` makes it a no-op when the item is already
+   * so (an Undo after the item was already taken back); `keepPlace` puts it back where it
+   * was rather than at the end; `quiet` skips the toast.
+   */
+  toggleItem: (listId: string, itemId: string, opts?: { want?: boolean; keepPlace?: boolean; quiet?: boolean }) => Promise<boolean>;
   editItem: (listId: string, itemId: string, patch: { name: string; qty: string; note: string }) => Promise<Outcome>;
   deleteItem: (listId: string, itemId: string) => Promise<boolean>;
   /** Removes every recently used (checked) item, with Undo. */
   clearChecked: (listId: string) => Promise<boolean>;
+  /** Drops an item between two others (by drag); either neighbour may be missing at an end. */
+  moveItemTo: (listId: string, itemId: string, afterId: string | null, beforeId: string | null) => Promise<boolean>;
   saveList: (id: string | null, title: string, description: string) => Promise<Outcome<string>>;
   addTask: (t: NewTask) => Promise<Outcome<string>>;
   saveTask: (id: string, t: NewTask) => Promise<Outcome>;
@@ -221,11 +228,15 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
   stateRef.current = state;
 
   const merge = useCallback((c: Change) => {
-    setServer((s) => {
+    const patch = (s: Rows) => {
       const next = without(s, c.removed);
       for (const r of c.rows) next[r.id] = r;
       return next;
-    });
+    };
+    // Kept current at once, not on the next render, so a change queued right behind this
+    // one (a tick, then a second tap taking it back) is sent with the new version.
+    serverRef.current = patch(serverRef.current);
+    setServer(patch);
   }, []);
 
   // ---------------------------------------------------------------- loading and quiet refresh
@@ -509,16 +520,17 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         return (await go()).ok;
       },
 
-      async toggleItem(listId, itemId) {
+      async toggleItem(listId, itemId, opts = {}) {
         const it = row(itemId);
         if (!it) return false;
         const was = it.data.checked === true;
+        if (opts.want !== undefined && opts.want !== !was) return true;
         const name = it.data.name as string;
-        const position = was ? nextPosition(listId) : undefined;
+        const position = was ? (opts.keepPlace ? (it.data.position as number) : nextPosition(listId)) : undefined;
         const data = was ? { ...it.data, checked: false, position } : { ...it.data, checked: true };
         const keep = () => later((box) => queueToggle(box, itemId, !was, position, nowIso()));
         const r = offlineNow() ? (keep(), { ok: true as const, value: undefined }) : await update(`“${name}” wasn’t ${was ? 'put back' : 'checked off'}`, itemId, data, false, keep);
-        if (r.ok) toast(was ? `“${name}” put back.` : `Checked off “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId) } });
+        if (r.ok && !opts.quiet) toast(was ? `“${name}” put back.` : `Checked off “${name}”.`, { action: { label: 'Undo', onClick: () => void a.toggleItem(listId, itemId, { want: was, keepPlace: true }) } });
         return r.ok;
       },
 
@@ -535,6 +547,17 @@ export function StoreProvider({ backend, children }: { backend: Backend; childre
         const r = await run({ label: `“${name}” wasn’t removed`, ids: [itemId], apply: (x) => without(x, [itemId]), send: () => backend.remove(itemId, ver(itemId)) });
         if (r.ok) toast(`Removed “${name}”.`, { action: { label: 'Undo', onClick: () => void restoreIds([itemId], `“${name}” wasn’t restored`) } });
         return r.ok;
+      },
+
+      async moveItemTo(_listId, itemId, afterId, beforeId) {
+        const it = row(itemId);
+        if (!it) return false;
+        const at = (id: string | null) => (id ? (row(id)?.data.position as number | undefined) : undefined);
+        const a = at(afterId);
+        const b = at(beforeId);
+        // Halfway between the neighbours, so a move rewrites only the moved item.
+        const position = a !== undefined && b !== undefined ? (a + b) / 2 : a !== undefined ? a + 1 : b !== undefined ? b - 1 : (it.data.position as number);
+        return (await update('the new order wasn’t saved', itemId, { ...it.data, position })).ok;
       },
 
       async clearChecked(listId) {

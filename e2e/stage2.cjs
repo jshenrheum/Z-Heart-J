@@ -95,46 +95,46 @@ function startPreview() {
     await J.page.getByRole('button', { name: 'Create Groceries' }).click();
     await J.page.getByRole('link', { name: /Groceries/ }).first().click();
     await J.page.getByPlaceholder('I need…').fill('Milk');
-    await J.page.getByRole('button', { name: /^Add to / }).click();
-    await J.page.locator('#to-get .li-row', { hasText: 'Milk' }).waitFor();
+    await J.page.getByPlaceholder('I need…').press('Enter');
+    await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Milk' }).waitFor();
     await J.page.waitForTimeout(400);
     await J.page.reload({ waitUntil: 'networkidle' });
     await ready(J.page);
-    ok(await J.page.locator('#to-get .li-row', { hasText: 'Milk' }).first().isVisible(), 'Milk persisted');
+    ok(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Milk' }).first().isVisible(), 'Milk persisted');
   });
   await check('quiet refresh: Zul’s open Groceries list shows Jeffrey’s new item without a reload', async () => {
     await go(Z.page, '/lists');
     await Z.page.getByRole('link', { name: /Groceries/ }).first().click();
     await J.page.getByPlaceholder('I need…').fill('Eggs');
-    await J.page.getByRole('button', { name: /^Add to / }).click();
-    await Z.page.locator('#to-get .li-row', { hasText: 'Eggs' }).waitFor({ timeout: 20000 });
-    ok((await Z.page.locator('#to-get .li-row', { hasText: 'Eggs' }).getAttribute('class')).includes('li-row'), 'arrived');
+    await J.page.getByPlaceholder('I need…').press('Enter');
+    await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).waitFor({ timeout: 20000 });
+    ok((await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).getAttribute('class')).includes('li-row'), 'arrived');
   });
   await check('a dropped connection while adding keeps the item, then saves it exactly once', async () => {
     await J.page.route('**/api/records', (route) => route.abort('connectionreset'), { times: 1 });
     await J.page.getByPlaceholder('I need…').fill('Basil');
-    await J.page.getByRole('button', { name: /^Add to / }).click();
+    await J.page.getByPlaceholder('I need…').press('Enter');
     await J.page.getByText(/Synced 1 change made offline/).waitFor({ timeout: 20000 });
     eq(await J.page.locator('.save-banner').count(), 0, 'no failure alert');
     J.page.errors = J.page.errors.filter((e) => !/ERR_CONNECTION_RESET|Failed to load resource/.test(e));
     await J.page.reload({ waitUntil: 'networkidle' });
     await ready(J.page);
-    eq(await J.page.locator('#to-get .li-row', { hasText: 'Basil' }).count(), 1, 'saved exactly once');
+    eq(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Basil' }).count(), 1, 'saved exactly once');
   });
   await check('failed save: a server error rolls back to the last saved list, alerts, and Retry saves it', async () => {
     await J.page.route('**/api/records', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'server_error', message: 'Something went wrong on the server. Nothing was changed.' }) }), { times: 1 });
     await J.page.getByPlaceholder('I need…').fill('Honey');
-    await J.page.getByRole('button', { name: /^Add to / }).click();
+    await J.page.getByPlaceholder('I need…').press('Enter');
     await J.page.locator('.save-banner').waitFor({ timeout: 5000 });
-    eq(await J.page.locator('#to-get .li-row', { hasText: 'Honey' }).count(), 0, 'rolled back');
+    eq(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Honey' }).count(), 0, 'rolled back');
     ok((await J.page.locator('.save-banner').innerText()).includes('Your last saved version is showing'), 'honest wording');
     J.page.errors = J.page.errors.filter((e) => !/ERR_CONNECTION_RESET|Failed to load resource/.test(e));
     await J.page.getByRole('button', { name: 'Retry' }).click();
-    await J.page.locator('#to-get .li-row', { hasText: 'Honey' }).waitFor({ timeout: 5000 });
+    await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Honey' }).waitFor({ timeout: 5000 });
     await J.page.waitForTimeout(400);
     await J.page.reload({ waitUntil: 'networkidle' });
     await ready(J.page);
-    eq(await J.page.locator('#to-get .li-row', { hasText: 'Honey' }).count(), 1, 'saved exactly once');
+    eq(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Honey' }).count(), 1, 'saved exactly once');
   });
 
   // ---------------------------------------------------------------- conflicts
@@ -285,13 +285,13 @@ function startPreview() {
     await Z.ctx.clearCookies(); // the Access session ends
     await Z.page.getByRole('link', { name: /Groceries/ }).first().click();
     await Z.page.getByPlaceholder('I need…').fill('Bread');
-    await Z.page.getByRole('button', { name: /^Add to / }).click();
+    await Z.page.getByPlaceholder('I need…').press('Enter');
     await Z.page.getByText('Your sign-in has expired').waitFor({ timeout: 5000 });
     await Z.page.getByRole('button', { name: 'Sign in again' }).click();
     await Z.page.waitForURL(/__local\/sign-in/);
     await signIn(Z.page, 'Zul');
     await go(Z.page, '/lists/' + (await J.page.evaluate(() => fetch('/api/state').then((r) => r.json()).then((s) => s.rows.find((x) => x.kind === 'list').id))));
-    eq(await Z.page.locator('#to-get .li-row', { hasText: 'Bread' }).count(), 0, 'nothing was saved while signed out');
+    eq(await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Bread' }).count(), 0, 'nothing was saved while signed out');
   });
   await check('wedding: Jeffrey sets the date; Zul’s Home shows the countdown', async () => {
     await go(J.page, '/wedding');
@@ -331,7 +331,7 @@ function startPreview() {
     await J.ctx.setOffline(true);
     await J.page.reload();
     await J.page.locator('.offline-note').waitFor({ timeout: 15000 });
-    ok(await J.page.locator('#to-get .li-row', { hasText: 'Eggs' }).first().isVisible(), 'the list from the phone');
+    ok(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).first().isVisible(), 'the list from the phone');
     await J.page.getByRole('checkbox', { name: /^Check off “Eggs”/ }).click();
     await J.page.getByPlaceholder('I need…').fill('Lemons');
     await J.page.getByPlaceholder('I need…').press('Enter');
@@ -339,7 +339,7 @@ function startPreview() {
     await J.page.reload(); // closing and reopening keeps what waited
     await J.page.locator('.offline-note').waitFor({ timeout: 15000 });
     ok((await J.page.locator('.offline-note').innerText()).includes('2 changes waiting'), await J.page.locator('.offline-note').innerText());
-    eq(await J.page.locator('#to-get .li-row', { hasText: 'Eggs' }).count(), 0, 'still checked off');
+    eq(await J.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).count(), 0, 'still checked off');
     await go(J.page, '/'); // other pages keep nothing
     ok((await J.page.innerText('main')).includes('Connect to view'), 'Home waits for a connection');
     eq(await J.page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('zhj:')).sort().join(',')), 'zhj:lists-copy:v1,zhj:lists-outbox:v1', 'only the lists are kept');
@@ -351,8 +351,8 @@ function startPreview() {
     await go(J.page, '/lists/' + listId);
     await J.page.waitForFunction(() => !document.querySelector('.offline-note'), null, { timeout: 15000 });
     await go(Z.page, '/lists/' + listId);
-    await Z.page.locator('#to-get .li-row', { hasText: 'Lemons' }).waitFor({ timeout: 20000 });
-    eq(await Z.page.locator('#to-get .li-row', { hasText: 'Eggs' }).count(), 0, 'Zul sees Eggs checked off');
+    await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Lemons' }).waitFor({ timeout: 20000 });
+    eq(await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).count(), 0, 'Zul sees Eggs checked off');
     J.page.errors = J.page.errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource: net::/.test(e)); // the deliberate time offline
   });
   await check('sign out: ends the session and returns to sign-in', async () => {
