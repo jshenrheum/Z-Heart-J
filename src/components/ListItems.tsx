@@ -141,7 +141,7 @@ export function ItemRow({ item, listId, editable, reorderable, ticking, onTick, 
     <li
       ref={rowRef}
       data-id={item.id}
-      className={`li-row ${done ? 'is-done' : ''} ${ticking ? 'is-ticking' : ''} ${item.sync ? 'is-saving' : ''} ${dragging ? 'is-dragging' : ''} ${editing ? 'is-editing' : ''}`}
+      className={`li-row ${done ? 'is-done' : ''} ${ticking ? 'is-ticking' : ''} ${item.sync ? 'is-saving' : ''} ${dragging ? 'is-dragging' : ''} ${editing ? 'is-editing' : ''} ${swipe ? 'is-swiping' : ''}`}
       style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
       aria-busy={item.sync ? true : undefined}
     >

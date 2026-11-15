@@ -158,7 +158,7 @@ export function ListPage({ id }: { id: string }) {
         </div>
       </div>
 
-      <ul className="li-list li-light card" id="to-get" ref={listEl} aria-label={words.open}>
+      <ul className="li-list li-glass card" id="to-get" ref={listEl} aria-label={words.open}>
         {drag.order.map((rid) => {
           const i = byId.get(rid);
           if (!i) return null;
