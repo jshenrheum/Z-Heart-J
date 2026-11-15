@@ -204,6 +204,7 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       const rows = await page.$$eval('#to-get > li', (e) => e.map((x) => x.className));
       ok(rows[rows.length - 1].includes('li-new'), 'the new-item row is the last row');
       eq(await need(page).inputValue(), '', 'field cleared');
+      eq(await need(page).evaluate((el) => getComputedStyle(el).webkitUserSelect), 'text', 'typable on an iPhone (selection not turned off)');
     });
     await check('list: notes and quantity show under the name; the header is the title and a count', async () => {
       ok((await toGet(page, 'Milk').first().locator('.li-sub').innerText()).includes('1 gal'), 'quantity under Milk');
