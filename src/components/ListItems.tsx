@@ -24,6 +24,66 @@ const capture = (e: ReactPointerEvent) => {
   }
 };
 
+/**
+ * Swipe left on a row: past 40px it stays open on a Delete button; past half the width
+ * it deletes. A tap (no movement) goes to `onTap`, and closes an open row first.
+ */
+export function useSwipe(opts: { enabled: boolean; onDelete: () => void; onTap?: (target: HTMLElement) => void }) {
+  const [swipe, setSwipeState] = useState(0);
+  // The latest offset, read by the gesture handlers between renders.
+  const swipeRef = useRef(0);
+  const g = useRef<{ x: number; y: number; base: number; mode: 'pending' | 'swipe' | 'off'; width: number } | null>(null);
+  const setSwipe = (v: number) => {
+    swipeRef.current = v;
+    setSwipeState(v);
+  };
+  const handlers = {
+    onPointerDown: (e: ReactPointerEvent) => {
+      if (e.button !== 0) return;
+      const width = (e.currentTarget as HTMLElement).offsetWidth || 320;
+      g.current = { x: e.clientX, y: e.clientY, base: swipeRef.current, mode: 'pending', width };
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      const s = g.current;
+      if (!s) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (s.mode === 'pending') {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) && opts.enabled) {
+          s.mode = 'swipe';
+          capture(e);
+        } else if (Math.abs(dy) > 10) {
+          s.mode = 'off'; // a scroll
+        }
+      }
+      if (s.mode === 'swipe') setSwipe(Math.max(-s.width * 0.9, Math.min(0, s.base + dx)));
+    },
+    onPointerUp: (e: ReactPointerEvent) => {
+      const s = g.current;
+      g.current = null;
+      if (!s) return;
+      if (s.mode === 'swipe') {
+        const at = swipeRef.current;
+        if (at < -s.width * 0.5) {
+          setSwipe(0);
+          opts.onDelete();
+        } else setSwipe(at < -40 ? -SWIPE_OPEN : 0);
+        return;
+      }
+      if (s.mode === 'pending') {
+        if (swipeRef.current !== 0) setSwipe(0);
+        else opts.onTap?.(e.target as HTMLElement);
+      }
+    },
+    onPointerCancel: () => {
+      const s = g.current;
+      g.current = null;
+      if (s?.mode === 'swipe') setSwipe(0);
+    },
+  };
+  return { swipe, close: () => setSwipe(0), handlers };
+}
+
 interface RowProps {
   item: ListItem;
   listId: string;
@@ -47,16 +107,7 @@ export function ItemRow({ item, listId, editable, reorderable, ticking, onTick, 
   const [name, setName] = useState(item.name);
   const [qty, setQty] = useState(item.qty);
   const [note, setNote] = useState(item.note);
-  const [swipe, setSwipeState] = useState(0);
-  // The latest offset, read by the gesture handlers between renders.
-  const swipeRef = useRef(0);
-  const setSwipe = (v: number) => {
-    swipeRef.current = v;
-    setSwipeState(v);
-  };
-  const rowRef = useRef<HTMLLIElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const g = useRef<{ x: number; y: number; base: number; mode: 'pending' | 'swipe' | 'off'; width: number } | null>(null);
   const dragOn = useRef(false);
   const done = item.checked || ticking;
   const sub = itemSub(item);
@@ -88,47 +139,14 @@ export function ItemRow({ item, listId, editable, reorderable, ticking, onTick, 
     setEditing(false);
   };
 
-  // ---- gestures: tap the text to edit, swipe left to delete (dragging is the grip's)
-  const down = (e: ReactPointerEvent) => {
-    if (editing || e.button !== 0) return;
-    const width = rowRef.current?.offsetWidth ?? 320;
-    g.current = { x: e.clientX, y: e.clientY, base: swipeRef.current, mode: 'pending', width };
-  };
-  const move = (e: ReactPointerEvent) => {
-    const s = g.current;
-    if (!s) return;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (s.mode === 'pending') {
-      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) && editable) {
-        s.mode = 'swipe';
-        capture(e);
-      } else if (Math.abs(dy) > 10) {
-        s.mode = 'off'; // a scroll
-      }
-    }
-    if (s.mode === 'swipe') setSwipe(Math.max(-s.width * 0.9, Math.min(0, s.base + dx)));
-  };
-  const up = (e: ReactPointerEvent) => {
-    const s = g.current;
-    g.current = null;
-    if (!s) return;
-    if (s.mode === 'swipe') {
-      const at = swipeRef.current;
-      if (at < -s.width * 0.5) void actions.deleteItem(listId, item.id);
-      else setSwipe(at < -40 ? -SWIPE_OPEN : 0);
-      return;
-    }
-    if (s.mode === 'pending') {
-      if (swipeRef.current !== 0) setSwipe(0);
-      else if (editable && (e.target as HTMLElement).closest('.li-text')) setEditing(true);
-    }
-  };
-  const cancelGesture = () => {
-    const s = g.current;
-    g.current = null;
-    if (s?.mode === 'swipe') setSwipe(0);
-  };
+  // Tap the text to edit; swipe left to delete (dragging is the grip's).
+  const { swipe, handlers } = useSwipe({
+    enabled: editable && !editing,
+    onDelete: () => void actions.deleteItem(listId, item.id),
+    onTap: (t) => {
+      if (editable && !editing && t.closest('.li-text')) setEditing(true);
+    },
+  });
 
   const keys = (e: ReactKeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -139,7 +157,6 @@ export function ItemRow({ item, listId, editable, reorderable, ticking, onTick, 
 
   return (
     <li
-      ref={rowRef}
       data-id={item.id}
       className={`li-row ${done ? 'is-done' : ''} ${ticking ? 'is-ticking' : ''} ${item.sync ? 'is-saving' : ''} ${dragging ? 'is-dragging' : ''} ${editing ? 'is-editing' : ''} ${swipe ? 'is-swiping' : ''}`}
       style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
@@ -153,10 +170,7 @@ export function ItemRow({ item, listId, editable, reorderable, ticking, onTick, 
       <div
         className="li-slide"
         style={swipe ? { transform: `translateX(${swipe}px)` } : undefined}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={cancelGesture}
+        {...handlers}
       >
         <button type="button" role="checkbox" aria-checked={done} className="check" aria-label={done ? `Put back “${item.name}”` : `Check off “${item.name}”`} onPointerDown={(e) => e.stopPropagation()} onClick={onTick}>
           {done && <Icon name="check" size={18} />}

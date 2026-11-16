@@ -118,7 +118,7 @@ export function InfoPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Our Info" sub="The details of our life, easy to find." />
+      <PageHeader title="Our Info" />
       <FilterChips
         label="Filter Our Info"
         current={who}
@@ -195,7 +195,6 @@ export function ContactsPage() {
       <PageHeader
         title="Contacts"
         back={{ to: routes.info, label: 'Our Info' }}
-        sub="Shared directory — adding someone never sends them anything."
         actions={
           <button type="button" className="btn btn-primary btn-sm" onClick={() => forms.open({ kind: 'contact' })}>
             <Icon name="plus" size={17} /> Add contact

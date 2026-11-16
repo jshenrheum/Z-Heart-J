@@ -52,7 +52,7 @@ export function WeddingPage() {
       <PageHeader
         title="Wedding"
         back={{ to: routes.story, label: 'Our story' }}
-        sub={w?.date ? `${displayDate(w.date, today)}${w.time ? ` · ${formatTime(w.time)}` : ''}${w.venue ? ` · ${w.venue.split('\n')[0]}` : ''}` : 'Everything for the day, in one place.'}
+        sub={w?.date ? `${displayDate(w.date, today)}${w.time ? ` · ${formatTime(w.time)}` : ''}${w.venue ? ` · ${w.venue.split('\n')[0]}` : ''}` : undefined}
         actions={
           <button type="button" className="btn btn-quiet btn-sm" onClick={() => forms.open({ kind: 'wedding' })}>
             <Icon name="edit" size={17} /> {w ? 'Edit details' : 'Set the date'}

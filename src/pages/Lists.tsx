@@ -20,7 +20,6 @@ export function ListsPage() {
     <div className="page">
       <PageHeader
         title="Lists"
-        sub="Shared by both of you. Add and check items from either phone."
         actions={
           <button type="button" className="btn btn-primary btn-sm" onClick={() => forms.open({ kind: 'list' })}>
             <Icon name="plus" size={17} /> New list

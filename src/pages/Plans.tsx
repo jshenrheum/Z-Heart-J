@@ -33,7 +33,6 @@ export function PlansPage() {
     <div className="page">
       <PageHeader
         title="Plans"
-        sub="Household tasks, maintenance, and projects with steps or dates."
         actions={
           <>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => forms.open({ kind: 'task' })}>

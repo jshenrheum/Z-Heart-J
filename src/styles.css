@@ -241,7 +241,7 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
 .notes { padding: 12px 14px; background: var(--surface); border: 1px solid var(--hairline); border-left: 2px solid var(--accent); border-radius: var(--radius-sm); color: var(--text-2); font-size: 0.9375rem; }
 .updated-by { font-size: 0.8125rem; color: var(--muted); }
 .dup-hint { grid-column: 1 / -1; color: #FFB4AE; font-weight: 500; }
-.task-plan-link { display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; }
+.task-plan-link { color: var(--text-2); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 2px; }
 .inline-link { color: var(--accent); font-weight: 500; font-size: 0.875rem; text-decoration: none; transition: color var(--t); }
 .inline-link:hover { color: #E8D6B6; text-decoration: underline; text-underline-offset: 3px; }
 .search-tips { text-align: center; padding: 10px 6px; }
@@ -550,22 +550,22 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .dock-chip svg { color: var(--muted); }
 .dock-chip-sub { font-size: 0.8125rem; color: var(--muted); }
 .task-list { list-style: none; padding: 4px 8px; }
-.task { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 2px 0; }
-.task + .task { border-top: 1px solid var(--hairline); }
-.task { align-items: flex-start; padding: 6px 0; }
-.task.is-done .task-title { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
 .check { position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
 .check::before { content: ""; width: 22px; height: 22px; border: 1.5px solid var(--muted); border-radius: 50%; background: transparent; transition: background var(--t), border-color var(--t), transform var(--t) var(--ease); }
 .check:hover::before { border-color: var(--text); }
 .check[aria-checked="true"]::before { background: var(--primary); border-color: var(--primary); }
 .check:active::before { transform: scale(0.9); }
 .check svg { position: absolute; color: var(--on-primary); }
-.task-body { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 8px 6px 8px 0; }
-.task-title { font-weight: 500; }
-.task-edit { justify-self: start; min-height: 44px; margin: -10px 0 -8px -6px; padding: 0 6px; text-align: left; font: inherit; font-weight: 500; color: inherit; background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: background var(--t); }
-.task-edit:hover { background: var(--surface-2); }
-.task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.task-notes { font-size: 0.8125rem; color: var(--muted); }
+/* Tasks read like list items: the title, then one grey line. */
+.task.is-done .li-name { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+.task-edit { justify-self: start; max-width: 100%; padding: 0; text-align: left; font: inherit; font-weight: 500; color: inherit; background: transparent; border: 0; cursor: pointer; overflow-wrap: anywhere; }
+.task-meta { display: block; -webkit-line-clamp: unset; }
+.task-due.is-overdue { color: var(--warn); font-weight: 500; }
+.task-due.is-today, .task-due.is-soon { color: var(--accent); }
+.task-rep { white-space: normal; }
+.task-rep svg { display: inline-block; vertical-align: -2px; margin-right: 2px; }
+.task-sep { color: var(--faint); }
+
 
 /* ------------------------------------------------------------------ calendar */
 .whose-jeffrey { --whose: var(--jeffrey); }

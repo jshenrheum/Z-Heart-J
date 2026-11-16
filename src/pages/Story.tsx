@@ -54,7 +54,7 @@ export function StoryPage() {
     <div className="page story-page">
       <PageHeader
         title="Our story"
-        sub={moments.length ? `${moments.length} moment${moments.length === 1 ? '' : 's'} since ${longDate(moments[0]!.date)}` : 'The days worth keeping, with their photos.'}
+        sub={moments.length ? `${moments.length} moment${moments.length === 1 ? '' : 's'} since ${longDate(moments[0]!.date)}` : undefined}
         actions={
           <button type="button" className="btn btn-primary btn-sm" onClick={() => forms.open({ kind: 'moment' })}>
             <Icon name="plus" size={17} /> Add a moment

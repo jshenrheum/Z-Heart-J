@@ -345,6 +345,24 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await toGet(page).first().waitFor();
       eq((await toGetNames(page))[0], last, 'kept after leaving and coming back');
     });
+    await check('plans: a task is one row with a grey line (who · when · repeats), and swipes into the trash with Undo', async () => {
+      await nav(page, 'Plans').click();
+      const t = page.locator('.task', { hasText: 'Replace AC filter' }).first();
+      await t.waitFor();
+      const line = await t.locator('.task-meta').innerText();
+      ok(/^Both · In \d+ days · .+ ·\s+Every 3 months/.test(line), line);
+      eq(await t.locator('.chip').count(), 0, 'no pill badges');
+      ok(await page.locator('.task .task-due.is-overdue').first().isVisible(), 'overdue in warm words');
+      eq(await page.locator('.page-sub').count(), 0, 'no explanation under the title');
+      await swipe(t, 0.7);
+      await page.waitForTimeout(300);
+      eq(await page.locator('.task', { hasText: 'Replace AC filter' }).count(), 0, 'moved to the trash');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await page.locator('.task', { hasText: 'Replace AC filter' }).first().waitFor({ timeout: 3000 });
+      await page.locator('.task', { hasText: 'Get two quotes' }).first().locator('.li-name').tap();
+      await page.getByRole('dialog').waitFor({ timeout: 2000 });
+      await page.getByRole('dialog').getByRole('button', { name: 'Close without saving' }).click();
+    });
     await check('console: no errors during this group', async () => ok(page.errors.length === 0, page.errors.join('; ')));
     await ctx.close();
   }

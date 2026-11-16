@@ -8,7 +8,7 @@ export function SearchPage() {
   const [q, setQ] = useState(() => historyState<{ q?: string }>()?.q ?? '');
   return (
     <div className="page">
-      <PageHeader title="Search" sub="Numbers, addresses, contacts, lists, and plans you’ve saved." />
+      <PageHeader title="Search" />
       <SearchField value={q} onChange={setQ} autoFocus />
       <SearchResults query={q} limit={25} />
       {!q.trim() && (
