@@ -261,7 +261,10 @@ export function NewItemRow({ list }: { list: SharedList }) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const name = text.trim();
-    if (!name) return;
+    if (!name) {
+      input.current?.focus(); // the plus with nothing typed: start typing
+      return;
+    }
     const key = norm(name);
     if (list.items.some((i) => !i.checked && norm(i.name) === key) && dupKey !== key) {
       setDupKey(key);
@@ -273,10 +276,22 @@ export function NewItemRow({ list }: { list: SharedList }) {
 
   return (
     <li className="li-row li-new">
-      <form className="li-slide" onSubmit={submit}>
-        <span className="li-new-plus" aria-hidden="true">
+      <form
+        className="li-slide"
+        onSubmit={submit}
+        onClick={(e) => {
+          // A tap anywhere on the row (not just on the words) starts typing.
+          if (!(e.target as HTMLElement).closest('button, input')) input.current?.focus();
+        }}
+      >
+        <button
+          type="submit"
+          className="li-new-plus"
+          aria-label={text.trim() ? `Add “${text.trim()}”` : 'Add an item'}
+          onPointerDown={(e) => e.preventDefault() /* keep the keyboard up */}
+        >
           <Icon name="plus" size={16} />
-        </span>
+        </button>
         <div className="li-text">
           <label className="sr-only" htmlFor={`new-${list.id}`}>
             Add an item to {list.title}

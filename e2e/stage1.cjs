@@ -205,6 +205,17 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       ok(rows[rows.length - 1].includes('li-new'), 'the new-item row is the last row');
       eq(await need(page).inputValue(), '', 'field cleared');
       eq(await need(page).evaluate((el) => getComputedStyle(el).webkitUserSelect), 'text', 'typable on an iPhone (selection not turned off)');
+      await page.locator('.page-title').click();
+      await page.getByRole('button', { name: 'Add an item' }).click();
+      ok(await page.evaluate(() => document.activeElement.classList.contains('li-input-new')), 'the plus starts typing');
+      await page.locator('.page-title').click();
+      const row = await page.locator('.li-new .li-slide').boundingBox();
+      await page.mouse.click(row.x + row.width - 12, row.y + row.height / 2);
+      ok(await page.evaluate(() => document.activeElement.classList.contains('li-input-new')), 'so does a tap anywhere on the row');
+      await need(page).fill('Jam');
+      await page.getByRole('button', { name: 'Add “Jam”' }).click();
+      await toGet(page, 'Jam').first().waitFor();
+      ok(await page.evaluate(() => document.activeElement.classList.contains('li-input-new')), 'the plus adds what is typed and keeps the field');
     });
     await check('list: notes and quantity show under the name; the header is the title and a count', async () => {
       ok((await toGet(page, 'Milk').first().locator('.li-sub').innerText()).includes('1 gal'), 'quantity under Milk');

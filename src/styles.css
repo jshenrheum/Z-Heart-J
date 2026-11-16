@@ -525,8 +525,11 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
 .li-row:not(.is-swiping) .li-delete { visibility: hidden; }
 .li-row.is-swiping .li-slide { background: var(--surface-2); }
 /* The new-item row says "add here": a filled accent plus and brighter words. */
-.li-new-plus::before { content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
-.li-new-plus { position: relative; color: var(--bg); }
+.li-new-plus::before { content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); transition: transform var(--t) var(--ease); }
+.li-new-plus { position: relative; color: var(--bg); padding: 0; background: transparent; border: 0; cursor: pointer; }
+.li-new-plus:active::before { transform: scale(0.9); }
+.li-new-plus:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; border-radius: 50%; }
+.li-new .li-slide { cursor: text; }
 .li-new-plus svg { position: relative; }
 .li-new .li-input-new::placeholder { color: var(--text-2); }
 /* A faint glass card, so the list reads as one block in the app's own colour. */
