@@ -267,6 +267,21 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
 .card-meta { margin-top: 6px; }
 .card-chev { flex: none; color: var(--faint); transition: color var(--t), transform var(--t) var(--ease); }
 .card-link:hover .card-chev { color: var(--muted); transform: translateX(2px); }
+/* Grouped rows, like iPhone Settings: one card, thin lines between, the line inset past the icon. */
+.row-group { list-style: none; padding: 0; overflow: hidden; }
+.row-group > li + li .row-link::before { content: ""; position: absolute; top: 0; left: 58px; right: 0; border-top: 1px solid var(--hairline); }
+.row-link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 12px 10px 14px; color: inherit; text-decoration: none; transition: background-color var(--t); }
+.row-link:hover, .row-link:active { background-color: var(--surface-2); }
+.row-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: var(--radius); }
+.row-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface-3); color: var(--accent); }
+.row-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.row-title { font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.row-sub { font-size: 0.8125rem; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.row-sep { color: var(--faint); }
+.row-tone.is-warn { color: var(--warn); font-weight: 500; }
+.row-tone.is-soon { color: var(--heart); }
+.row-tone.is-lock { color: var(--accent); }
+.row-chev { flex: none; color: var(--faint); }
 .pin-grid { display: grid; gap: 8px; }
 @media (min-width: 560px) { .pin-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); } }
 

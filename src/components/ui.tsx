@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, type ReactNode } from 'react';
 import { MEMBERS, type FieldKind, type MemberId, type PinTarget } from '../data/types.ts';
 import { useStore } from '../data/store.tsx';
 import { useFeedback } from '../lib/feedback.tsx';
@@ -108,6 +108,49 @@ export function CardLink({ to, icon, title, sub, meta, aria }: { to: string; ico
       </span>
       <Icon name="chevron" size={18} className="card-chev" />
     </Link>
+  );
+}
+
+/** A group of rows in one card, with thin lines between, like iPhone Settings. */
+export function RowGroup({ children, label }: { children: ReactNode; label?: string }) {
+  return (
+    <ul className="card row-group" aria-label={label}>
+      {children}
+    </ul>
+  );
+}
+
+/** Words in a row's grey line that need attention: overdue (warm) or soon (pink). */
+export function Tone({ tone, children }: { tone: 'warn' | 'soon' | 'lock'; children: ReactNode }) {
+  return <span className={`row-tone is-${tone}`}>{children}</span>;
+}
+
+/** One row of a RowGroup: a small icon, the title, a grey line (parts joined by ·), and a chevron. */
+export function RowLink({ to, icon, title, sub, meta }: { to: string; icon: IconName; title: string; sub?: ReactNode; meta?: ReactNode[] }) {
+  const parts = (meta ?? []).filter(Boolean);
+  return (
+    <li>
+      <Link to={to} className="row-link">
+        <span className="row-icon">
+          <Icon name={icon} size={18} />
+        </span>
+        <span className="row-main">
+          <span className="row-title">{title}</span>
+          {sub && <span className="row-sub">{sub}</span>}
+          {parts.length > 0 && (
+            <span className="row-sub row-meta">
+              {parts.map((p, k) => (
+                <Fragment key={k}>
+                  {k > 0 && <span className="row-sep" aria-hidden="true"> · </span>}
+                  {p}
+                </Fragment>
+              ))}
+            </span>
+          )}
+        </span>
+        <Icon name="chevron" size={17} className="row-chev" />
+      </Link>
+    </li>
   );
 }
 

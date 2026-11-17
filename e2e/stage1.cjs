@@ -627,6 +627,15 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
   {
     const { ctx, page } = await newPage();
     await open(page, '/info');
+    await check('our info: each section is one card of rows; Home is one card; details read as a grey line', async () => {
+      eq(await page.locator('main .card-link').count(), 0, 'no separate box per item');
+      const home = page.getByRole('list', { name: 'Home' });
+      ok((await home.locator('li').count()) >= 5, 'every home item in one card');
+      ok((await home.innerText()).includes('Utilities · Demo Electric Co.') || (await home.innerText()).includes('Utility · Demo Electric Co.'), await home.innerText());
+      const lic = page.getByRole('link', { name: /State medical license/ });
+      ok(/No number saved · Expires in \d+ days/.test(await lic.innerText()), await lic.innerText());
+      eq(await page.locator('main .chip').count(), 0, 'no pill badges');
+    });
     await check('vehicles: Our Info has a Vehicles section; a card groups its details by category', async () => {
       await page.getByRole('link', { name: /Demo car/ }).first().click();
       const sections = await page.$$eval('main .section-title', (e) => e.map((x) => x.textContent.trim().replace(/\d+$/, '')));

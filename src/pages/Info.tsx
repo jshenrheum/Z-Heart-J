@@ -8,7 +8,7 @@ import { directionsHref, telHref } from '../lib/summary.ts';
 import { useFeedback } from '../lib/feedback.tsx';
 import { useForms } from '../components/Forms.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { CardLink, Chip, EmptyState, FilterChips, PageHeader, Section } from '../components/ui.tsx';
+import { CardLink, Chip, EmptyState, FilterChips, PageHeader, RowGroup, RowLink, Section, Tone } from '../components/ui.tsx';
 import type { ReactNode } from 'react';
 import { vehicleDates, vehicleSummary } from '../lib/vehicles.ts';
 
@@ -30,12 +30,21 @@ export function expiryChip(expires: DateStr | undefined, today: DateStr): ReactN
   return <Chip icon="calendar">Expires {displayDate(expires, today)}</Chip>;
 }
 
+/** The same, as words for a row's grey line. */
+function expiryText(expires: DateStr | undefined, today: DateStr): ReactNode {
+  if (!expires) return null;
+  const n = diffDays(expires, today);
+  if (n < 0) return <Tone tone="warn">Expired {displayDate(expires, today)}</Tone>;
+  if (n <= 60) return <Tone tone="soon">Expires in {n} day{n === 1 ? '' : 's'}</Tone>;
+  return <span>Expires {displayDate(expires, today)}</span>;
+}
+
 /** "Registration renews in 12 days" and the like. */
-function dueChip(label: string, date: DateStr, today: DateStr): ReactNode {
+function dueText(label: string, date: DateStr, today: DateStr): ReactNode {
   const n = diffDays(date, today);
-  if (n < 0) return <Chip tone="warn" icon="calendar">{label} · overdue</Chip>;
-  if (n <= 60) return <Chip tone="heart" icon="calendar">{label} in {n} day{n === 1 ? '' : 's'}</Chip>;
-  return <Chip icon="calendar">{label} {displayDate(date, today)}</Chip>;
+  if (n < 0) return <Tone tone="warn">{label} · overdue</Tone>;
+  if (n <= 60) return <Tone tone="soon">{label} in {n} day{n === 1 ? '' : 's'}</Tone>;
+  return <span>{label} {displayDate(date, today)}</span>;
 }
 
 export function InfoPage() {
@@ -54,26 +63,26 @@ export function InfoPage() {
       <>
         {profile && (
           <Section title="Work" id={`work-${m}`}>
-            <div className="stack">
-              <CardLink
+            <RowGroup label={`${name} · Work`}>
+              <RowLink
                 to={routes.profile(m)}
                 icon="building"
                 title={withName ? `${name} · Work details` : 'Work details'}
                 sub={`${profile.specialty} · ${locs.length} location${locs.length === 1 ? '' : 's'}`}
               />
               {locs.map((l) => (
-                <CardLink key={l.id} to={routes.record(l.id)} icon="map" title={l.label} sub={l.address.split(',')[0]} meta={l.fax ? <span className="muted small">Fax on file</span> : undefined} />
+                <RowLink key={l.id} to={routes.record(l.id)} icon="map" title={l.label} sub={l.address.split(',')[0]} meta={l.fax ? ['Fax on file'] : undefined} />
               ))}
-            </div>
+            </RowGroup>
           </Section>
         )}
         {creds.length > 0 && (
           <Section title="Credentials" id={`cred-${m}`}>
-            <div className="stack">
+            <RowGroup label={`${name} · Credentials`}>
               {creds.map((c) => (
-                <CredentialCard key={c.id} c={c} today={today} prefix={withName ? name : undefined} />
+                <CredentialRow key={c.id} c={c} today={today} prefix={withName ? name : undefined} />
               ))}
-            </div>
+            </RowGroup>
           </Section>
         )}
       </>
@@ -90,12 +99,12 @@ export function InfoPage() {
         </button>
       </div>
       {vehicles.length ? (
-        <div className="stack">
+        <RowGroup label="Vehicles">
           {vehicles.map((r) => {
             const next = vehicleDates(r).sort((a, b) => a.date.localeCompare(b.date))[0];
-            return <CardLink key={r.id} to={routes.record(r.id)} icon="car" title={r.title} sub={vehicleSummary(r) || undefined} meta={next ? <span className="chip-row">{dueChip(next.label, next.date, today)}</span> : undefined} />;
+            return <RowLink key={r.id} to={routes.record(r.id)} icon="car" title={r.title} sub={vehicleSummary(r) || undefined} meta={next ? [dueText(next.label, next.date, today)] : undefined} />;
           })}
-        </div>
+        </RowGroup>
       ) : (
         <p className="muted">Make, model, plate, VIN, registration, insurance and service, in one place.</p>
       )}
@@ -103,17 +112,16 @@ export function InfoPage() {
   );
 
   const homeBlocks = () => {
-    const groups = HOME_ORDER.map((t) => ({ t, items: state.home.filter((r) => r.template === t) })).filter((g) => g.items.length > 0);
-    if (groups.length === 0) return <EmptyState title="Nothing saved about home yet." body="Use Add → Add information to start." />;
-    return groups.map((g) => (
-      <Section title={HOME_TEMPLATE_LABEL[g.t]} key={g.t} id={`home-${g.t}`}>
-        <div className="stack">
-          {g.items.map((r) => (
-            <HomeCard key={r.id} r={r} />
-          ))}
-        </div>
-      </Section>
-    ));
+    // One card for the whole home, in a set order; each row says what kind of thing it is.
+    const items = HOME_ORDER.flatMap((t) => state.home.filter((r) => r.template === t));
+    if (items.length === 0) return <EmptyState title="Nothing saved about home yet." body="Use Add → Add information to start." />;
+    return (
+      <RowGroup label="Home">
+        {items.map((r) => (
+          <HomeRow key={r.id} r={r} />
+        ))}
+      </RowGroup>
+    );
   };
 
   return (
@@ -124,7 +132,9 @@ export function InfoPage() {
         current={who}
         items={FILTERS.map((f) => ({ key: f.key, label: f.label, to: f.key === 'all' ? routes.info : `${routes.info}?who=${f.key}` }))}
       />
-      <CardLink to={routes.contacts} icon="phone" title="Contacts" sub={`${state.contacts.length} people and services`} />
+      <RowGroup label="Contacts">
+        <RowLink to={routes.contacts} icon="phone" title="Contacts" sub={`${state.contacts.length} people and services`} />
+      </RowGroup>
 
       {who === 'all' && (
         <>
@@ -152,33 +162,28 @@ export function InfoPage() {
   );
 }
 
-function CredentialCard({ c, today, prefix }: { c: Credential; today: DateStr; prefix?: string }) {
+function CredentialRow({ c, today, prefix }: { c: Credential; today: DateStr; prefix?: string }) {
   return (
-    <CardLink
+    <RowLink
       to={routes.record(c.id)}
       icon="lock"
       title={prefix ? `${prefix} · ${c.type}` : c.type}
       sub={c.issuer}
-      meta={
-        <span className="chip-row">
-          <Chip tone="lock" icon="lock">{c.hasValue ? 'Number protected' : 'No number saved'}</Chip>
-          {expiryChip(c.expires, today)}
-        </span>
-      }
+      meta={[c.hasValue ? <Tone tone="lock">Number protected</Tone> : 'No number saved', expiryText(c.expires, today)]}
     />
   );
 }
 
-function HomeCard({ r }: { r: HomeRecord }) {
+function HomeRow({ r }: { r: HomeRecord }) {
   const first = r.fields.find((f) => !f.protected && f.value);
   const hasProtected = r.fields.some((f) => f.protected);
   return (
-    <CardLink
+    <RowLink
       to={routes.record(r.id)}
       icon={HOME_ICON[r.template]}
       title={r.title}
-      sub={first?.value}
-      meta={hasProtected ? <Chip tone="lock" icon="lock">Includes protected field</Chip> : undefined}
+      sub={[HOME_TEMPLATE_LABEL[r.template].toLowerCase() === r.title.trim().toLowerCase() ? '' : HOME_TEMPLATE_LABEL[r.template], first?.value].filter(Boolean).join(' · ')}
+      meta={hasProtected ? [<Tone tone="lock">Includes a protected field</Tone>] : undefined}
     />
   );
 }
