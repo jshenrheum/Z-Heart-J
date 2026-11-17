@@ -627,6 +627,30 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
   {
     const { ctx, page } = await newPage();
     await open(page, '/info');
+    await check('press feedback: a held button shrinks and dims; a held row lights up; both settle back', async () => {
+      const btn = page.getByRole('button', { name: 'Add vehicle' }).first();
+      await btn.scrollIntoViewIfNeeded();
+      const b = await btn.boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(150);
+      const held = await btn.evaluate((e) => [getComputedStyle(e).transform, getComputedStyle(e).opacity]);
+      ok(held[0].startsWith('matrix(0.95') && Number(held[1]) < 0.9, JSON.stringify(held));
+      await page.mouse.move(5, 5); // slide off, so nothing opens
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      eq(await btn.evaluate((e) => getComputedStyle(e).transform), 'none', 'settles back');
+      const row = page.getByRole('link', { name: /AC and filter/ });
+      await row.scrollIntoViewIfNeeded();
+      const before = await row.evaluate((e) => getComputedStyle(e).backgroundColor);
+      const r = await row.boundingBox();
+      await page.mouse.move(r.x + 40, r.y + r.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(150);
+      ok((await row.evaluate((e) => getComputedStyle(e).backgroundColor)) !== before, 'row lights up');
+      await page.mouse.move(5, 5);
+      await page.mouse.up();
+    });
     await check('our info: each section is one card of rows; Home is one card; details read as a grey line', async () => {
       eq(await page.locator('main .card-link').count(), 0, 'no separate box per item');
       const home = page.getByRole('list', { name: 'Home' });

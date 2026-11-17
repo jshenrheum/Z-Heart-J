@@ -8,6 +8,9 @@ import './styles.css';
 
 initPwa();
 
+// Safari on iPhone shows :active (the press feedback) only once the page listens for touches.
+document.addEventListener('touchstart', () => undefined, { passive: true });
+
 // The demo backend (placeholder content, in memory) exists only in the demo build:
 // with __DEMO__ false this import is dropped from the production bundle entirely.
 const backend: Backend = __DEMO__ ? (await import('./demo/backend.ts')).createDemoBackend() : createApiBackend();

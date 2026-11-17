@@ -41,6 +41,7 @@ If your installed Chromium differs from the one Playwright expects, set `CHROMIU
 
 - **Home** — the wedding countdown, this week on the calendar, tasks coming up; Pinned and Shared lists fold away until opened (search is in the header).
 - **Calendar** — one shared calendar. Each event is Jeffrey's, Zul's or both (champagne, rose, white), with a filter for Everyone, Mine or the other's. A month grid with dots and an agenda. Events have times or are all day (and can span days), a place with Directions, notes, and repeats (daily, weekly, monthly, yearly; month ends don't drift); one day of a repeat can be removed on its own. Dated tasks, plan target dates and credential expiry dates appear on it automatically.
+- **Press feedback** — every button, chip and tab dims and shrinks a touch while pressed, and rows light up, as on an iPhone (reduced motion keeps only the dim).
 - **Our Info** — each person's work details and locations (address, phones, fax, scheduling line), credentials, home cards (address, utilities, internet, maintenance, pet, vehicle, anything else), and contacts.
   - **Copy work summary** is built from an explicit allowlist of ordinary fields. A credential number can't be in it.
   - Fax numbers are copy-only, never a `tel:` link. Links only open as `http(s)`.

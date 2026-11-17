@@ -140,7 +140,6 @@ img, svg { display: block; max-width: 100%; }
   transition: background var(--t), transform var(--t) var(--ease);
 }
 .add-btn:hover { background: #FFFFFF; }
-.add-btn:active { transform: scale(0.98); }
 .menu {
   position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; min-width: 232px; padding: 6px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lift);
@@ -256,7 +255,6 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
   transition: border-color var(--t), background-color var(--t), transform var(--t) var(--ease);
 }
 .card-link:hover { border-color: var(--line); background-color: var(--surface-2); }
-.card-link:active { transform: scale(0.995); }
 .card-icon {
   flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px;
   background: var(--surface-3); border: 1px solid var(--line); color: var(--accent);
@@ -321,7 +319,6 @@ main { min-width: 0; padding: 20px 16px calc(var(--nav-h) + var(--safe-bottom) +
   border: 1px solid transparent; border-radius: var(--radius-sm); font-weight: 500; font-size: 0.9375rem; cursor: pointer; text-decoration: none; line-height: 1.2;
   transition: background var(--t), border-color var(--t), color var(--t), transform var(--t) var(--ease);
 }
-.btn:active { transform: scale(0.985); }
 .btn-sm { padding: 0 14px; font-size: 0.875rem; }
 .btn-primary { background: var(--primary); color: var(--on-primary); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset; font-weight: 600; }
 .btn-primary:hover { background: #FFFFFF; }
@@ -459,7 +456,6 @@ select.input { appearance: none; padding-right: 40px; background-image: linear-g
   transition: transform var(--t) var(--ease), background var(--t), color var(--t), opacity var(--t);
 }
 .tile:hover { background: radial-gradient(120% 90% at 50% 0%, #FFFFFF 0%, #F7F5F1 58%, #EDEAE4 100%); }
-.tile:active { transform: scale(0.97); }
 .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .tile-name {
   max-width: 100%; font-size: 1rem; line-height: 1.25; font-weight: 560; letter-spacing: -0.014em; overflow-wrap: anywhere;
@@ -850,6 +846,25 @@ input.sr-only:focus-visible + label.btn { outline: 2px solid var(--focus); outli
   .btn { padding: 0 16px; }
   .btn-sm { padding: 0 12px; }
   .add-btn { padding: 0 14px 0 10px; }
+}
+
+/* ------------------------------------------------------------------ press feedback
+   Every button, chip and tab dims and shrinks a touch while pressed; rows light up,
+   as on an iPhone. Quick on press, a little softer on release. */
+.btn, .icon-btn, .add-btn, .chip-btn, .seg, .dock-chip, .rsvp button, .nav-item, .back-link, .list-menu-pop button, .li-delete, .tile, .task-edit, .card-link, .row-link, .recent summary, .fold-head {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms var(--ease), opacity 160ms var(--ease), background-color var(--t), color var(--t), border-color var(--t);
+}
+.btn:not(:disabled):active, .icon-btn:not(:disabled):active, .add-btn:active, .chip-btn:active, .seg:active, .dock-chip:active, .rsvp button:active, .nav-item:active, .back-link:active, .list-menu-pop button:active, .li-delete:active, .tile:active {
+  transform: scale(0.95); opacity: 0.78; transition-duration: 60ms;
+}
+.card-link:active { transform: scale(0.985); background-color: var(--surface-2); transition-duration: 60ms; }
+.row-link:active { background-color: var(--surface-3); transition-duration: 60ms; }
+.task-edit:active, .recent summary:active, .fold-head:active { opacity: 0.6; transition-duration: 60ms; }
+.list-menu-pop button:active { background: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) {
+  /* No shrinking; the dim alone says the tap landed. */
+  .btn:active, .icon-btn:active, .add-btn:active, .chip-btn:active, .seg:active, .dock-chip:active, .rsvp button:active, .nav-item:active, .back-link:active, .list-menu-pop button:active, .li-delete:active, .tile:active, .card-link:active { transform: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
