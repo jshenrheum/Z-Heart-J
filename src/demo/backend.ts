@@ -2,7 +2,7 @@ import { HOUSEHOLD_TZ, todayIn } from '../lib/dates.ts';
 import { canonical, CREATABLE, DELETABLE, InvalidData, newRowId, rowTitle, TRASH_DAYS, validateData, WEDDING_ID, type Change, type Kind, type Row, type TrashEntry } from '../lib/records.ts';
 import { completeTask, reopenTask } from '../lib/tasks.ts';
 import type { MemberId, Task } from '../data/types.ts';
-import { ConflictError, SaveError, type Backend } from '../data/backend.ts';
+import { ConflictError, SaveError, type Backend, type Nudge } from '../data/backend.ts';
 import { makeDemoRows } from './data.ts';
 import { DEMO_PHOTOS } from './photos.ts';
 
@@ -37,6 +37,7 @@ export function createDemoBackend(): DemoBackend {
     for (const p of (data.photos as Array<{ id: string }> | undefined) ?? []) if (!photos.has(p.id)) throw new SaveError('A photo in this moment wasn’t uploaded.', 400);
   };
   let rev = 1;
+  const nudges: Nudge[] = [{ id: 'n-demo', from: 'zul', to: 'jeffrey', text: 'Can you check the grocery list? (demo)', at: new Date(Date.now() - 2 * 3600_000).toISOString(), delivered: 0 }];
 
   const self: DemoBackend = {
     mode: 'demo',
@@ -181,6 +182,32 @@ export function createDemoBackend(): DemoBackend {
     },
 
     photoUrl: (id) => photos.get(id) ?? '',
+
+    // Nudges stay in this tab, like everything else; the demo never sends a notification.
+    async nudges() {
+      await pause(false);
+      return [...nudges].reverse();
+    },
+    async sendNudge(id, text) {
+      await pause();
+      const clean = text.replace(/\s+/g, ' ').trim();
+      if (!clean) throw new SaveError('Write a few words first.', 400);
+      if (clean.length > 200) throw new SaveError('Keep it to 200 characters.', 400);
+      const to = self.me === 'jeffrey' ? 'zul' : 'jeffrey';
+      const nudge = nudges.find((n) => n.id === id) ?? { id, from: self.me, to, text: clean, at: new Date().toISOString(), delivered: 0 };
+      if (!nudges.includes(nudge)) nudges.push(nudge);
+      return { nudge, delivered: 0, phones: 0, configured: false };
+    },
+    async pushStatus() {
+      const o = self.me === 'jeffrey' ? 'zul' : 'jeffrey';
+      return { configured: false, publicKey: null, myPhones: 0, other: { id: o, name: o === 'zul' ? 'Zul' : 'Jeffrey', phones: 0 } };
+    },
+    async subscribePush() {
+      throw new SaveError('The demo preview doesn’t send notifications.', 400);
+    },
+    async unsubscribePush() {
+      /* nothing to remove in the demo */
+    },
 
     async trash() {
       await pause(false);

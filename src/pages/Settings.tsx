@@ -6,6 +6,7 @@ import { Icon } from '../components/Icon.tsx';
 import { signOut } from '../components/Layout.tsx';
 import { CardLink, PageHeader, Section } from '../components/ui.tsx';
 import { DemoSettings } from '../demo/ui.tsx';
+import { NotificationsSettings } from '../components/Notifications.tsx';
 
 const INSTALL_STEPS = {
   ios: 'In Safari, tap the Share button, then “Add to Home Screen”. (Other iPhone browsers can’t install web apps.)',
@@ -39,6 +40,8 @@ export function SettingsPage() {
       )}
 
       {__DEMO__ && <DemoSettings />}
+
+      <NotificationsSettings />
 
       <Section title="Sharing" id="sharing">
         <div className="card">
@@ -90,7 +93,7 @@ export function SettingsPage() {
         <div className="card">
           <p className="card-title">Later</p>
           <ul className="bullets">
-            <li>Document attachments with expiry dates, opt-in reminders, calendar sync</li>
+            <li>Document attachments with expiry dates, reminders as notifications, calendar sync</li>
             <li>Separate private spaces, if you ever want them</li>
           </ul>
         </div>

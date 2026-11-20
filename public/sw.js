@@ -92,3 +92,47 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+/* Nudges: a notification for each push (an iPhone requires one every time), and a tap
+ * opens the app on Home with that nudge at the top. The push itself is decrypted by
+ * the browser; it carries only the sender's name, the words and where to open. */
+self.addEventListener('push', (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = {};
+  }
+  const title = typeof d.title === 'string' && d.title ? d.title : 'Z Heart J';
+  const body = typeof d.body === 'string' && d.body ? d.body : 'You have a nudge.';
+  const url = typeof d.url === 'string' && d.url.startsWith('/') ? d.url : '/';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag: typeof d.tag === 'string' ? d.tag : undefined,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of open) {
+        if (new URL(c.url).origin !== self.location.origin) continue;
+        try {
+          if ('navigate' in c) await c.navigate(url);
+        } catch {
+          /* keep the page it's on */
+        }
+        return c.focus();
+      }
+      return self.clients.openWindow(url);
+    })(),
+  );
+});

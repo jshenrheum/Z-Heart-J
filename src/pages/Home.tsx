@@ -13,6 +13,7 @@ import { TaskRow } from '../components/Tasks.tsx';
 import { CardLink, FoldSection, Section } from '../components/ui.tsx';
 import { CalRow } from './Calendar.tsx';
 import { countdown } from '../lib/wedding.ts';
+import { NudgeCard } from '../components/Nudge.tsx';
 
 export function HomePage() {
   const { state, me, today } = useStore();
@@ -33,6 +34,8 @@ export function HomePage() {
       </h1>
 
       <div className="home-grid">
+        <NudgeCard />
+
         <FoldSection title="Pinned" count={pins.length} id="pins">
           {pins.length > 0 ? (
             <div className="pin-grid">

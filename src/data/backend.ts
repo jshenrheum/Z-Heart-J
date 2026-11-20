@@ -29,6 +29,38 @@ export interface Backend {
   reveal?(recordId: string, slot: string): Promise<string>;
   /** Where the ordinary-data export downloads from (live only). */
   readonly exportHref?: string;
+  /** Nudges: a short note to the other person, sent to their phones as a notification. */
+  nudges(): Promise<Nudge[]>;
+  sendNudge(id: string, text: string): Promise<NudgeResult>;
+  pushStatus(): Promise<PushStatus>;
+  subscribePush(sub: PushSubscriptionJSON): Promise<void>;
+  unsubscribePush(endpoint: string): Promise<void>;
+}
+
+export interface Nudge {
+  id: string;
+  from: MemberId;
+  to: MemberId;
+  text: string;
+  at: string;
+  /** How many of the recipient's phones the notification service accepted it for. */
+  delivered: number;
+}
+
+export interface NudgeResult {
+  nudge: Nudge;
+  delivered: number;
+  /** How many phones the recipient has notifications on for. */
+  phones: number;
+  /** Whether notifications are set up on the server at all. */
+  configured: boolean;
+}
+
+export interface PushStatus {
+  configured: boolean;
+  publicKey: string | null;
+  myPhones: number;
+  other: { id: MemberId; name: string; phones: number };
 }
 
 export interface ProtectedSlotInfo {

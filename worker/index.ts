@@ -1,7 +1,7 @@
 import { ApiError, json, routeApi } from './api.ts';
 import { AuthError, identify } from './auth.ts';
 import { CSP_HEADER } from './csp.ts';
-import { householdIds, purgeTrash } from './db.ts';
+import { householdIds, purgeNudges, purgeTrash } from './db.ts';
 import type { Env } from './env.ts';
 
 /**
@@ -96,8 +96,11 @@ export default {
     return withHeaders(res, cacheFor(path, res));
   },
 
-  /** Daily: permanently remove anything that has been in the trash for more than 30 days. */
+  /** Daily: permanently remove anything in the trash for more than 30 days, and nudges older than 30 days. */
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
-    for (const hh of await householdIds(env.DB)) await purgeTrash(env.DB, hh);
+    for (const hh of await householdIds(env.DB)) {
+      await purgeTrash(env.DB, hh);
+      await purgeNudges(env.DB, hh);
+    }
   },
 } satisfies ExportedHandler<Env>;

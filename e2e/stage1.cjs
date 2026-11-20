@@ -89,6 +89,42 @@ const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
       await page.locator('#lists summary').click();
       ok(await page.getByRole('link', { name: 'All lists' }).isVisible(), 'lists shown once opened');
     });
+    await check('nudge: Home has Nudge Zul and recent nudges with Reply; a quick nudge sends at once and says what happened', async () => {
+      await open(page, '/');
+      const card = page.getByRole('region', { name: 'Nudges' });
+      ok((await card.innerText()).includes('Can you check the grocery list?'), 'a nudge from Zul shows');
+      ok(await card.getByRole('button', { name: 'Reply to Zul' }).isVisible(), 'with Reply');
+      await card.getByRole('button', { name: 'Nudge Zul' }).click();
+      const d = page.getByRole('dialog', { name: 'Nudge Zul' });
+      await d.waitFor();
+      ok(await page.evaluate(() => document.activeElement.tagName === 'TEXTAREA'), 'ready to type');
+      eq(await d.getByRole('button', { name: /Send/ }).isDisabled(), true, 'nothing to send yet');
+      await d.getByRole('button', { name: 'On my way' }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok(await page.getByText('The demo preview never sends a notification.').isVisible(), 'honest about the demo');
+      ok((await card.innerText()).includes('On my way'), 'listed as sent');
+      ok((await card.innerText()).includes('waiting in the app'), 'and says where it is');
+    });
+    await check('nudge: write your own (counted, up to 200); Escape closes without sending', async () => {
+      await page.getByRole('button', { name: 'Reply to Zul' }).click();
+      const d = page.getByRole('dialog', { name: 'Nudge Zul' });
+      await d.getByLabel('Or write your own').fill('Dinner at 7?');
+      ok((await d.innerText()).includes('12/200'), 'counted');
+      eq(await d.getByLabel('Or write your own').getAttribute('maxlength'), '200', 'limit');
+      await page.keyboard.press('Escape');
+      await d.waitFor({ state: 'detached', timeout: 2000 });
+      ok(!(await page.getByRole('region', { name: 'Nudges' }).innerText()).includes('Dinner at 7?'), 'not sent');
+      await page.getByRole('button', { name: 'Nudge Zul' }).click();
+      await d.getByLabel('Or write your own').fill('Dinner at 7?');
+      await d.getByRole('button', { name: /Send/ }).click();
+      await d.waitFor({ state: 'detached', timeout: 3000 });
+      ok((await page.getByRole('region', { name: 'Nudges' }).innerText()).includes('Dinner at 7?'), 'sent');
+    });
+    await check('nudge: Settings says the demo never sends notifications', async () => {
+      await open(page, '/settings');
+      ok((await page.locator('section[aria-labelledby="notifications-h"]').innerText()).includes('never sends notifications'), 'honest note');
+      eq(await page.getByRole('button', { name: /Turn on notifications|Make keys/ }).count(), 0, 'no controls that can’t work here');
+    });
     await check('lists: a Recipes list holds a recipe per row, its ingredients under it and the whole method a tap away', async () => {
       await open(page, '/lists/recipes');
       const r = page.locator(`#to-get [data-id="${await page.locator('#to-get .li-row', { hasText: 'Weeknight pasta' }).getAttribute('data-id')}"]`);

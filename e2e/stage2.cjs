@@ -355,6 +355,42 @@ function startPreview() {
     eq(await Z.page.locator('#to-get .li-row:not(.li-new)', { hasText: 'Eggs' }).count(), 0, 'Zul sees Eggs checked off');
     J.page.errors = J.page.errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource: net::/.test(e)); // the deliberate time offline
   });
+  await check('nudge: Jeffrey nudges Zul; it is saved and says it is waiting in the app (notifications not set up); Zul sees it with Reply', async () => {
+    await go(J.page, '/');
+    await J.page.getByRole('button', { name: 'Nudge Zul' }).click();
+    const d = J.page.getByRole('dialog', { name: 'Nudge Zul' });
+    await d.getByLabel('Or write your own').fill('Can you grab milk on the way home?');
+    await d.getByRole('button', { name: /Send/ }).click();
+    await d.waitFor({ state: 'detached', timeout: 5000 });
+    await J.page.getByText('Notifications aren’t set up yet, so it’s waiting for Zul in the app.').waitFor({ timeout: 3000 });
+    await go(Z.page, '/');
+    const card = Z.page.getByRole('region', { name: 'Nudges' });
+    await card.getByText('Can you grab milk on the way home?').waitFor({ timeout: 5000 });
+    ok((await card.innerText()).includes('Jeffrey ·'), 'from Jeffrey');
+    await card.getByRole('button', { name: 'Reply to Jeffrey' }).click();
+    const r = Z.page.getByRole('dialog', { name: 'Nudge Jeffrey' });
+    await r.getByRole('button', { name: 'On my way' }).click();
+    await r.waitFor({ state: 'detached', timeout: 5000 });
+    await go(J.page, '/');
+    await J.page.getByRole('region', { name: 'Nudges' }).getByText('On my way').waitFor({ timeout: 5000 });
+  });
+  await check('nudge: Settings offers the one-time setup; Make keys makes a valid pair on the device and sends nothing', async () => {
+    await go(J.page, '/settings');
+    const sec = J.page.locator('section[aria-labelledby="notifications-h"]');
+    ok((await sec.innerText()).includes('Notifications aren’t set up yet'), 'says so');
+    await sec.getByText('Set up notifications (once)').click();
+    const sent = [];
+    const watch = (req) => sent.push(req.url());
+    J.page.on('request', watch);
+    await sec.getByRole('button', { name: 'Make keys' }).click();
+    const values = await sec.locator('.notify-key-value').allInnerTexts();
+    J.page.off('request', watch);
+    eq(values.length, 2, 'two keys');
+    ok(/^[A-Za-z0-9_-]{87}$/.test(values[0]) && /^[A-Za-z0-9_-]{43}$/.test(values[1]), JSON.stringify(values.map((v) => v.length)));
+    eq(sent.length, 0, 'nothing sent: ' + sent.join(', '));
+    await sec.getByRole('button', { name: 'Hide the keys' }).click();
+    eq(await sec.locator('.notify-key-value').count(), 0, 'hidden again');
+  });
   await check('sign out: ends the session and returns to sign-in', async () => {
     await go(J.page, '/settings');
     await J.page.getByRole('button', { name: 'Sign out' }).click();

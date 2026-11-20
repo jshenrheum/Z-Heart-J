@@ -51,7 +51,7 @@ describe('migration 0004 keeps every existing row and encrypted value exactly', 
       audit: (await w.db.prepare('SELECT * FROM audit_events ORDER BY at').all()).results,
     });
     const before = await snap();
-    assert.deepEqual(await applyMigrations(w.db), ['0004_story.sql']);
+    assert.deepEqual(await applyMigrations(w.db, '0004_story.sql'), ['0004_story.sql']);
     assert.deepEqual(await snap(), before, 'every row identical, protected values included');
     assert.equal((await c.post('/api/protected/cred-a/number/reveal', {})).data.value, 'TEST-VALUE-0004');
     const indexes = (await w.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'records' AND name NOT LIKE 'sqlite_%' ORDER BY name").all<{ name: string }>()).results.map((r) => r.name);

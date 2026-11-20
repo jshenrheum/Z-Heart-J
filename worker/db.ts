@@ -151,6 +151,13 @@ export async function purgeTrash(db: D1Database, hh: string, now = Date.now()): 
   return res?.meta.changes ?? 0;
 }
 
+/** Nudges are kept for 30 days. */
+export async function purgeNudges(db: D1Database, hh: string, now = Date.now()): Promise<number> {
+  const cutoff = new Date(now - 30 * 86_400_000).toISOString();
+  const res = await db.prepare('DELETE FROM nudges WHERE household_id = ? AND created_at < ?').bind(hh, cutoff).run();
+  return res.meta.changes ?? 0;
+}
+
 export async function householdIds(db: D1Database): Promise<string[]> {
   const { results } = await db.prepare('SELECT id FROM households').all<{ id: string }>();
   return results.map((r) => r.id);

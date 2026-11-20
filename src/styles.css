@@ -848,10 +848,35 @@ input.sr-only:focus-visible + label.btn { outline: 2px solid var(--focus); outli
   .add-btn { padding: 0 14px 0 10px; }
 }
 
+/* ------------------------------------------------------------------ nudges */
+.nudge-card { padding: 0; overflow: hidden; }
+.nudge-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 12px 10px 14px; font: inherit; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer; }
+.nudge-btn:active { background-color: var(--surface-3); }
+.nudge-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: var(--radius); }
+.nudge-btn-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--bg); }
+.nudge-btn-text { flex: 1; font-weight: 500; }
+.nudge-list { list-style: none; margin: 0; padding: 0 14px 6px 58px; }
+.nudge-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--hairline); }
+.nudge-meta { grid-column: 1; font-size: 0.75rem; color: var(--muted); }
+.nudge-text { grid-column: 1; overflow-wrap: anywhere; }
+.nudge-item.is-mine .nudge-text { color: var(--text-2); }
+.nudge-item.is-opened .nudge-text { color: var(--accent); font-weight: 500; }
+.nudge-reply { grid-column: 2; grid-row: 1 / span 2; }
+.nudge-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.nudge-count { justify-self: end; }
+.notify-card { display: grid; gap: 12px; justify-items: start; }
+.notify-setup summary { cursor: pointer; font-weight: 500; color: var(--accent); min-height: 44px; display: flex; align-items: center; }
+.notify-steps { display: grid; gap: 8px; margin: 4px 0 12px; padding-left: 20px; color: var(--text-2); }
+.notify-steps code, .notify-key-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; }
+.notify-keys { display: grid; gap: 12px; width: 100%; justify-items: start; }
+.notify-key { justify-self: stretch; }
+.notify-key { display: grid; gap: 6px; justify-items: start; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.notify-key-value { overflow-wrap: anywhere; word-break: break-all; color: var(--text); user-select: all; -webkit-user-select: all; }
+
 /* ------------------------------------------------------------------ press feedback
    Every button, chip and tab dims and shrinks a touch while pressed; rows light up,
    as on an iPhone. Quick on press, a little softer on release. */
-.btn, .icon-btn, .add-btn, .chip-btn, .seg, .dock-chip, .rsvp button, .nav-item, .back-link, .list-menu-pop button, .li-delete, .tile, .task-edit, .card-link, .row-link, .recent summary, .fold-head {
+.btn, .icon-btn, .add-btn, .chip-btn, .seg, .dock-chip, .rsvp button, .nav-item, .back-link, .list-menu-pop button, .li-delete, .tile, .task-edit, .card-link, .row-link, .nudge-btn, .recent summary, .fold-head {
   -webkit-tap-highlight-color: transparent;
   transition: transform 160ms var(--ease), opacity 160ms var(--ease), background-color var(--t), color var(--t), border-color var(--t);
 }

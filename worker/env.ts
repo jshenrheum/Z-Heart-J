@@ -12,6 +12,12 @@ export interface Env {
   MEMBER_EMAILS?: string;
   /** Secret. Base64 of exactly 32 random bytes (AES-256-GCM) for protected fields. */
   PROTECTED_DATA_KEY?: string;
+  /** Secret. Base64url of the 65-byte public key that signs notifications (VAPID). */
+  VAPID_PUBLIC_KEY?: string;
+  /** Secret. Base64url of the matching 32-byte private key. */
+  VAPID_PRIVATE_KEY?: string;
+  /** Local tests only: extra hosts allowed as notification services (a stand-in on this machine). */
+  PUSH_EXTRA_HOSTS?: string;
   /** Row scope for this deployment. Defaults to "zj". */
   HOUSEHOLD_ID?: string;
 }

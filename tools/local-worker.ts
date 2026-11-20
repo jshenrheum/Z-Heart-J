@@ -117,6 +117,8 @@ export interface LocalOptions {
   origin?: string;
   /** Stop after this migration file (tests of later migrations start from it). */
   migrateUpTo?: string;
+  /** Answers other outbound requests (a stand-in notification service in the tests); null passes to the default refusal. */
+  outbound?: (req: Request) => Response | null | Promise<Response | null>;
 }
 
 export const LOCAL_MEMBERS = { jeffrey: 'jeffrey@local.test', zul: 'zul@local.test' } as const;
@@ -153,9 +155,12 @@ export async function startLocalWorker(opts: LocalOptions = {}): Promise<LocalWo
       assetConfig: { not_found_handling: 'single-page-application' },
     },
     unsafeTriggerHandlers: true,
-    // The Worker's only outbound call is for Access's public keys; anything else fails.
-    outboundService: (req: Request) => {
+    // The Worker's outbound calls are for Access's public keys and (in tests) a stand-in
+    // notification service; anything else fails.
+    outboundService: async (req: Request) => {
       if (req.url === certsUrl) return new Response(JSON.stringify(issuer.jwks), { headers: { 'content-type': 'application/json' } });
+      const answered = opts.outbound ? await opts.outbound(req) : null;
+      if (answered) return answered;
       return new Response('Blocked by the local harness', { status: 502 });
     },
   } as Parameters<typeof convertV4MiniflareOptions>[0]));

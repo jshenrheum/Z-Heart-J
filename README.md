@@ -41,6 +41,7 @@ If your installed Chromium differs from the one Playwright expects, set `CHROMIU
 
 - **Home** — the wedding countdown, this week on the calendar, tasks coming up; Pinned and Shared lists fold away until opened (search is in the header).
 - **Calendar** — one shared calendar. Each event is Jeffrey's, Zul's or both (champagne, rose, white), with a filter for Everyone, Mine or the other's. A month grid with dots and an agenda. Events have times or are all day (and can span days), a place with Directions, notes, and repeats (daily, weekly, monthly, yearly; month ends don't drift); one day of a repeat can be removed on its own. Dated tasks, plan target dates and credential expiry dates appear on it automatically.
+- **Nudges** — Home has **Nudge Zul** (or Nudge Jeffrey): a short note, typed or one of five quick ones, up to 200 characters. It's saved, and sent as a notification to each of the other person's phones that has notifications on, even when the app is closed; tapping the notification opens Home with that nudge marked. The last three days' nudges show on Home, with Reply. After sending, the app says exactly what happened: on their phone, or waiting in the app (notifications not set up, not turned on, or the phone didn't take it). Kept 30 days. Settings → Notifications turns them on or off for this phone, says whether the other person has them on, and until the server has its keys shows the one-time setup. The demo saves nudges in the tab and never sends one.
 - **Press feedback** — every button, chip and tab dims and shrinks a touch while pressed, and rows light up, as on an iPhone (reduced motion keeps only the dim).
 - **Our Info** — each person's work details and locations (address, phones, fax, scheduling line), credentials, home cards (address, utilities, internet, maintenance, pet, vehicle, anything else), and contacts.
   - **Copy work summary** is built from an explicit allowlist of ordinary fields. A credential number can't be in it.
@@ -86,6 +87,8 @@ Phone ──► Cloudflare Access (sign-in, the two emails only)
 | `HOUSEHOLD_ID` | variable | `wrangler.jsonc` → `vars` | `zj` (keep it) |
 | `MEMBER_EMAILS` | **secret** | dashboard → Variables and Secrets, or `npx wrangler secret put` | `jeffrey:<Jeffrey's email>,zul:<Zul's email>` |
 | `PROTECTED_DATA_KEY` | **secret** | dashboard → Variables and Secrets, or `npx wrangler secret put` | base64 of 32 random bytes — see below |
+| `VAPID_PUBLIC_KEY` | **secret** | dashboard → Variables and Secrets | made on your device — see “Notification keys” below |
+| `VAPID_PRIVATE_KEY` | **secret** | dashboard → Variables and Secrets | made on your device, with the public key |
 | address | `workers_dev` | `wrangler.jsonc` | `https://z-heart-j.jshenrheum.workers.dev` |
 
 The emails and the key are secrets on purpose: they never go into this repository.
@@ -122,6 +125,17 @@ Recommended: make it on your own computer and keep the backup in the password ma
 4. Clear the terminal. Don't put the key in this repository, a chat, an email, a note or a screenshot.
 
 Changing the key later makes values saved under the old one unreadable: the app says “saved with a different encryption key” instead of showing them. To rotate, put the old key back if needed, or re-enter the values after setting the new one.
+
+### Notification keys (for nudges)
+
+Notifications are signed with a key pair (VAPID), so phones' notification services (Apple, Google) know they come from this app. Until both secrets are set, nudges are still saved and shown in the app; only the notification is missing, and the app says so.
+
+1. In the app: **Settings → Notifications → Set up notifications (once) → Make keys.** The pair is made on that device and shown only there; it isn't sent anywhere.
+2. Cloudflare → Workers & Pages → `z-heart-j` → Settings → Variables and Secrets → Add, type **Secret**: `VAPID_PUBLIC_KEY` = the public key, `VAPID_PRIVATE_KEY` = the private key.
+3. Save the private key in your password manager as **“Z ♥ J — VAPID_PRIVATE_KEY”**. Not in this repository, a chat, an email, a note or a screenshot.
+4. Each of you, on your own phone, in the app opened from its Home Screen icon (iPhone: iOS 16.4 or later): **Settings → Notifications → Turn on notifications**, and Allow.
+
+How it works: a phone that turns notifications on hands the server an address at its notification service and two public keys; the server keeps them (`push_subscriptions`, only Apple's, Google's, Mozilla's and Microsoft's services are accepted). A nudge is encrypted to each phone's keys (RFC 8291, so the notification service sees only an encrypted blob) and signed with the private key (RFC 8292). A phone whose service answers "gone" is forgotten. Changing the keys later means each of you turns notifications on again.
 
 ## Still to do
 

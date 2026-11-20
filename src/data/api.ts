@@ -1,6 +1,6 @@
 import type { PhotoRef, PinTarget } from './types.ts';
 import type { Change, Kind, Row, Snapshot, TrashEntry } from '../lib/records.ts';
-import { ConflictError, SaveError, SessionError, type Backend, type ProtectedInfo } from './backend.ts';
+import { ConflictError, SaveError, SessionError, type Backend, type Nudge, type NudgeResult, type ProtectedInfo, type PushStatus } from './backend.ts';
 
 /**
  * The signed-in app's backend: same-origin JSON calls to the Worker. Identity is
@@ -104,5 +104,10 @@ export function createApiBackend(): Backend {
     setProtected: async (recordId, slot, value) => (await call<Change>('PUT', `/api/protected/${enc(recordId)}/${enc(slot)}`, { value })).data,
     clearProtected: async (recordId, slot) => (await call<Change>('DELETE', `/api/protected/${enc(recordId)}/${enc(slot)}`)).data,
     reveal: async (recordId, slot) => (await call<{ value: string }>('POST', `/api/protected/${enc(recordId)}/${enc(slot)}/reveal`, {})).data.value,
+    nudges: async () => (await call<{ nudges: Nudge[] }>('GET', '/api/nudges')).data.nudges,
+    sendNudge: async (id, text) => (await call<NudgeResult>('POST', '/api/nudges', { id, text })).data,
+    pushStatus: async () => (await call<PushStatus>('GET', '/api/push')).data,
+    subscribePush: async (sub) => void (await call('PUT', '/api/push/subscription', sub)),
+    unsubscribePush: async (endpoint) => void (await call('POST', '/api/push/unsubscribe', { endpoint })),
   };
 }

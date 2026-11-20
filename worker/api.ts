@@ -1,4 +1,4 @@
-import type { MemberId, Task } from '../src/data/types.ts';
+import { MEMBER_IDS, MEMBERS, type MemberId, type Task } from '../src/data/types.ts';
 import { HOUSEHOLD_TZ, todayIn } from '../src/lib/dates.ts';
 import {
   canonical, CREATABLE, CREDENTIAL_SLOT, DELETABLE, ID_RE, InvalidData, MAX_PHOTO_BYTES, newRowId, PHOTO_TYPES, PROTECTED_MAX, rowTitle, toHousehold, TRASH_DAYS, validateData, WEDDING_ID,
@@ -11,6 +11,7 @@ import {
   rowsById, toRow, trashRows, type DbRow,
 } from './db.ts';
 import type { Env } from './env.ts';
+import { allowedEndpoint, b64urlDecode, PushKeyError, sendPush, vapidFrom } from './push.ts';
 
 export class ApiError extends Error {
   constructor(
@@ -153,6 +154,7 @@ async function exportData(ctx: Ctx): Promise<Response> {
     formatVersion: 1,
     exportedAt: at,
     exportedBy: ctx.me,
+    nudges: (await ctx.db.prepare('SELECT id, from_member AS "from", to_member AS "to", text, created_at AS at FROM nudges WHERE household_id = ? ORDER BY created_at').bind(ctx.hh).all()).results,
     note: 'Ordinary household data only. Protected values (credential numbers and protected fields) are never exported; "hasValue" only says whether one is saved. Items in the trash are not included.',
     data,
   };
@@ -164,6 +166,129 @@ async function exportData(ctx: Ctx): Promise<Response> {
       'cache-control': 'no-store',
     },
   });
+}
+
+// ------------------------------------------------------------------ nudges and notifications
+
+const other = (m: MemberId): MemberId => MEMBER_IDS.find((x) => x !== m)!;
+const NUDGE_MAX = 200;
+const NUDGES_PER_DAY = 50;
+const NUDGE_DAYS = 30;
+
+interface SubRow {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+async function subsOf(ctx: Ctx, m: MemberId): Promise<SubRow[]> {
+  return (await ctx.db.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE household_id = ? AND member = ?').bind(ctx.hh, m).all<SubRow>()).results;
+}
+
+/** Whether notifications are set up on the server, and on whose phones. */
+async function pushStatus(ctx: Ctx): Promise<Response> {
+  const v = vapidFrom(ctx.env);
+  const o = other(ctx.me);
+  return json(200, {
+    configured: v !== null,
+    publicKey: v?.publicKey ?? null,
+    myPhones: (await subsOf(ctx, ctx.me)).length,
+    other: { id: o, name: MEMBERS[o].name, phones: (await subsOf(ctx, o)).length },
+  });
+}
+
+const B64URL_RE = /^[A-Za-z0-9_-]+$/;
+
+/** A phone turning notifications on hands over its address and keys; saved under whoever is signed in. */
+async function subscribe(ctx: Ctx): Promise<Response> {
+  if (!vapidFrom(ctx.env)) throw new ApiError(503, 'push_not_configured', 'Notifications aren’t set up on the server yet.');
+  const body = await readJson(ctx.req);
+  const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+  const keys = (body.keys ?? {}) as Record<string, unknown>;
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh : '';
+  const auth = typeof keys.auth === 'string' ? keys.auth : '';
+  if (!allowedEndpoint(endpoint, ctx.env.PUSH_EXTRA_HOSTS)) throw new ApiError(400, 'invalid', 'That isn’t a notification address this app can use.');
+  if (!B64URL_RE.test(p256dh) || !B64URL_RE.test(auth) || b64urlDecode(p256dh).length !== 65 || b64urlDecode(auth).length < 16) throw new ApiError(400, 'invalid', 'That phone’s notification keys aren’t valid.');
+  await ctx.db
+    .prepare(
+      `INSERT INTO push_subscriptions (household_id, member, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (household_id, endpoint) DO UPDATE SET member = excluded.member, p256dh = excluded.p256dh, auth = excluded.auth`,
+    )
+    .bind(ctx.hh, ctx.me, endpoint, p256dh, auth, nowIso())
+    .run();
+  return json(200, { ok: true, myPhones: (await subsOf(ctx, ctx.me)).length });
+}
+
+async function unsubscribe(ctx: Ctx): Promise<Response> {
+  const body = await readJson(ctx.req);
+  const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+  await ctx.db.prepare('DELETE FROM push_subscriptions WHERE household_id = ? AND member = ? AND endpoint = ?').bind(ctx.hh, ctx.me, endpoint).run();
+  return json(200, { ok: true, myPhones: (await subsOf(ctx, ctx.me)).length });
+}
+
+interface NudgeRow {
+  id: string;
+  from: MemberId;
+  to: MemberId;
+  text: string;
+  at: string;
+  delivered: number;
+}
+
+const NUDGE_COLS = 'id, from_member AS "from", to_member AS "to", text, created_at AS at, delivered';
+
+async function listNudges(ctx: Ctx): Promise<Response> {
+  const since = new Date(Date.now() - NUDGE_DAYS * 86_400_000).toISOString();
+  const { results } = await ctx.db.prepare(`SELECT ${NUDGE_COLS} FROM nudges WHERE household_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 20`).bind(ctx.hh, since).all<NudgeRow>();
+  return json(200, { nudges: results });
+}
+
+/**
+ * Saves a nudge for the other person and sends it to each of their phones that has
+ * notifications on. Saved either way, so it's waiting in the app. Sent with the
+ * phone's id for it, so a retry never sends it twice.
+ */
+async function sendNudge(ctx: Ctx): Promise<Response> {
+  const body = await readJson(ctx.req);
+  const id = typeof body.id === 'string' ? body.id : '';
+  if (!ID_RE.test(id)) throw new ApiError(400, 'invalid', 'Not a valid id.');
+  const text = (typeof body.text === 'string' ? body.text : '').replace(/\s+/g, ' ').trim();
+  if (!text) throw new ApiError(400, 'invalid', 'Write a few words first.', { field: 'text' });
+  if (text.length > NUDGE_MAX) throw new ApiError(400, 'invalid', `Keep it to ${NUDGE_MAX} characters.`, { field: 'text' });
+  if (CONTROL_RE.test(text)) throw new ApiError(400, 'invalid', 'That has characters that can’t be sent.', { field: 'text' });
+
+  const existing = await ctx.db.prepare(`SELECT ${NUDGE_COLS} FROM nudges WHERE household_id = ? AND id = ?`).bind(ctx.hh, id).first<NudgeRow>();
+  const v = vapidFrom(ctx.env);
+  const to = other(ctx.me);
+  if (existing) return json(200, { nudge: existing, delivered: existing.delivered, phones: (await subsOf(ctx, to)).length, configured: v !== null });
+
+  const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
+  const sent = await ctx.db.prepare('SELECT COUNT(*) AS n FROM nudges WHERE household_id = ? AND from_member = ? AND created_at >= ?').bind(ctx.hh, ctx.me, dayAgo).first<{ n: number }>();
+  if ((sent?.n ?? 0) >= NUDGES_PER_DAY) throw new ApiError(429, 'too_many', 'That’s a lot of nudges for one day. Try again tomorrow.');
+
+  const at = nowIso();
+  await ctx.db.prepare('INSERT INTO nudges (household_id, id, from_member, to_member, text, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(ctx.hh, id, ctx.me, to, text, at).run();
+
+  const subs = await subsOf(ctx, to);
+  let delivered = 0;
+  if (v && subs.length) {
+    const message = { title: MEMBERS[ctx.me].name, body: text, tag: `nudge-${id}`, url: `/?nudge=${encodeURIComponent(id)}` };
+    let outcomes: Array<'ok' | 'gone' | 'failed'>;
+    try {
+      outcomes = await Promise.all(subs.map((s) => sendPush(s, message, v, `https://${ctx.url.host}`)));
+    } catch (e) {
+      if (e instanceof PushKeyError) throw new ApiError(503, 'push_not_configured', `${e.message} The nudge is saved; it’ll show in the app.`);
+      throw e;
+    }
+    const gone = subs.filter((_, k) => outcomes[k] === 'gone').map((s) => s.endpoint);
+    delivered = outcomes.filter((o) => o === 'ok').length;
+    const stmts = gone.map((ep) => ctx.db.prepare('DELETE FROM push_subscriptions WHERE household_id = ? AND endpoint = ?').bind(ctx.hh, ep));
+    stmts.push(ctx.db.prepare('UPDATE nudges SET delivered = ? WHERE household_id = ? AND id = ?').bind(delivered, ctx.hh, id));
+    if (delivered) stmts.push(ctx.db.prepare('UPDATE push_subscriptions SET last_ok_at = ? WHERE household_id = ? AND member = ?').bind(at, ctx.hh, to));
+    await ctx.db.batch(stmts);
+  }
+  const nudge: NudgeRow = { id, from: ctx.me, to, text, at, delivered };
+  return json(201, { nudge, delivered, phones: subs.length, configured: v !== null });
 }
 
 // ------------------------------------------------------------------ photos (Our story)
@@ -612,6 +737,11 @@ const ROUTES: Array<[string, RegExp, Handler]> = [
   ['GET', /^\/api\/export$/, exportData],
   ['POST', /^\/api\/photos$/, uploadPhoto],
   ['GET', /^\/api\/photos\/([^/]+)$/, getPhoto],
+  ['GET', /^\/api\/push$/, pushStatus],
+  ['PUT', /^\/api\/push\/subscription$/, subscribe],
+  ['POST', /^\/api\/push\/unsubscribe$/, unsubscribe],
+  ['GET', /^\/api\/nudges$/, listNudges],
+  ['POST', /^\/api\/nudges$/, sendNudge],
 ];
 
 export async function routeApi(req: Request, env: Env, url: URL, me: MemberId): Promise<Response> {
